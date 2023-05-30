@@ -1,14 +1,17 @@
 [
     {
         "name": "Malfizars AI",
-        "src": "BrutalDefault.js"
+        "src": "BrutalDefault.js",
+        "creator": "BrutalityWarlord (Malfizar)"
     },
     {
         "name": "Ouchy AI",
-        "src": "ouchy3.1.js"
+        "src": "ouchy3.1.js",
+        "creator": "Ouchy"
     },
     {
         "name": "Hurricane AI",
-        "src": "Hurricane.js"
+        "src": "Hurricane.js",
+        "creator": "Mr MeowMeow"
     }
 ]

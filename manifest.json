@@ -1,0 +1,14 @@
+[
+    {
+        "name": "Malfizars AI",
+        "src": "BrutalDefault.js"
+    },
+    {
+        "name": "Ouchy AI",
+        "src": "ouchy3.1.js"
+    },
+    {
+        "name": "Hurricane AI",
+        "src": "Hurricane.js"
+    }
+]

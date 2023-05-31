@@ -1,6 +1,6 @@
-/**Deadly default AI
+/**Hurricane AI
  * 
- * Version 1.1.1 Beta
+ * Version 1.3.0
  * 
  * Made by a totally not egotistcal, super awesome, cofee hating, and 
  * incredibly skilled and unparalled programer, 
@@ -10,41 +10,54 @@
  * Concerns? Complaints? Please refer to the Department of Nobody Cares. And
  * yes, I am the manager.
  */
+ 
+let trainingModeOn = false;
+const DIFFICULTY = 1.1; //0 = the bot is braindead. 0-1 = a lot of functions are disabled. 1 = what the bot plays on average, and all functions are enabled.
+//1-2 = increases the update rate of the bot, making it slightly harder to play. 2 = will lag your computer with all the calculations the bot will make.
 
 const me = scope.getMyPlayerNumber();
 const time = Math.round(scope.getCurrentGameTimeInSec());
-const gold = scope.getGold();
+const tick = scope.getCurrentGameTimeInSec() * 200;//Game tick
+let gold = scope.getGold();
 const myTeam = scope.getMyTeamNumber();
 
 const supply = scope.getCurrentSupply();
 const maxSupply = scope.getMaxSupply();
 const supplyDiff = maxSupply - supply;//supply differenece
 
-const fightingUnits = scope.getUnits({notOfType: "Worker", player: me}); // returns all own fighting units (=not workers)
+let fightingUnits = scope.getUnits({notOfType: "Worker", player: me}); // returns all own fighting units (=not workers)
+for(let i = fightingUnits.length - 1; i > -1; i--){
+    fightingUnits[i].getTypeName() == "Airship" && fightingUnits.splice(i, 1);
+}
 const idleFightingUnits = scope.getUnits({notOfType: "Worker", player: me, order: "Stop"});
+for(let i = idleFightingUnits.length - 1; i > -1; i--){
+    idleFightingUnits[i].getTypeName() == "Airship" && idleFightingUnits.splice(i, 1);
+}
 const myUnits = {};
-for(var i = 0; i < fightingUnits.length; i++){
-    var unit = fightingUnits[i];
-    var name = unit.getTypeName();
+scope.getUnits({player: me}).forEach(function(unit){
+    let name = unit.getTypeName();
     if(myUnits[name] != undefined){
         myUnits[name].push(unit);
     }else{
         myUnits[name] = [];
         myUnits[name].push(unit);
     }
-}//Note that if you do not have a unit of a certain type, acessing 
+});//Note that if you do not have a unit of a certain type, acessing 
 //myUnits[nonExistantUnitName] will return undefined. 
 
-const enemyUnits = scope.getUnits({enemyOf: me});
+let enemyUnits = scope.getUnits({enemyOf: me});
+for(let i = enemyUnits.length - 1; i > -1; i--){
+    enemyUnits[i].isNeutral() && enemyUnits.splice(i, 1);
+}
 const enemyFightingUnits = scope.getUnits({notOfType: "Worker", enemyOf: me});
-var notMyBuildings = scope.getBuildings({enemyOf: me});
-var enemyBuildings = [];
-for(i = 0; i < notMyBuildings.length; i++){
-	if(notMyBuildings[i].isNeutral() === false){
-		enemyBuildings.push(notMyBuildings[i]);
+let notMyBuildings = scope.getBuildings({enemyOf: me});
+let enemyBuildings = [];
+notMyBuildings.forEach(function(build){
+	if(build.isNeutral() === false){
+		enemyBuildings.push(build);
 	}
-}//Copied from @BrutalityWarlord's AI; filters out enemy units from neutral units
-var myMechUnits = [];
+});//Copied from @BrutalityWarlord's AI; filters out enemy units from neutral units
+let myMechUnits = [];
 const enemyRanged = [];
 const enemyMelee = [];
 enemyFightingUnits.forEach(function(unit){
@@ -57,11 +70,7 @@ enemyFightingUnits.forEach(function(unit){
 const myMelee = [];
 const myRanged = [];
 fightingUnits.forEach(function(unit){
-    if(unit.getFieldValue("range") > 1){
-        myRanged.push(unit);
-    }else{
-        myMelee.push(unit);
-    }
+    unit.getFieldValue("range") > 1 ? myRanged.push(unit) : myMelee.push(unit);
 });
 
 if(myUnits["Ballista"] != undefined){
@@ -74,7 +83,7 @@ if(myUnits["Gatling Gun"] != undefined){
     myMechUnits = myMechUnits.concat(myUnits["Gatling Gun"]);
 }
 
-var myBuilds = {
+let myBuilds = {
     "allBuilds": scope.getBuildings({player: me}),
     "Castles": scope.getBuildings({type: "Castle", player: me}),
     "Fortresses": scope.getBuildings({type: "Fortress", player: me}),
@@ -95,8 +104,8 @@ var myBuilds = {
     "Snake Charmers": scope.getBuildings({type: "Snake Charmer", player: me}),
 }
 myBuilds.combatUnitProducers = myBuilds["Churches"].concat(myBuilds["Wolves Dens"].concat(myBuilds["Dragon Lairs"].concat(myBuilds["Workshops"].concat(myBuilds["Advanced Workshops"].concat(myBuilds["Mills"].concat(myBuilds["Barracks"].concat(myBuilds["Werewolves Dens"])))))));
-var alliedBuilds = scope.getBuildings({team: myTeam});
-var goldmines = scope.getBuildings({type: "Goldmine"});
+let alliedBuilds = scope.getBuildings({team: myTeam});
+let goldmines = scope.getBuildings({type: "Goldmine"});
 
 if(scope.initailized === true && myBuilds.combatUnitProducers.length > 1){
     filterDontProducers();
@@ -105,14 +114,13 @@ if(scope.initailized === true && myBuilds.combatUnitProducers.length > 1){
 myBuilds.CastleAndFortresses = myBuilds["Fortresses"].concat(myBuilds["Castles"]);//Fortresses should be the first castle the bot has, so therefore
 //it is concated into castles. Newest castles/fortresses should be at the back, oldest at the front. Messing with the order will cause problems.
 
-var idleWorkers = scope.getUnits({type: "Worker", player: me, order: "Stop"});
-var allWorkers = scope.getUnits({type: "Worker", player: me});
-var miningWorkers = scope.getUnits({type: "Worker", player: me, order: "Mine"});
-var repairingWorkers = scope.getUnits({type: "Worker", player: me, order: "Repair"});
-var workerToCastleRatio = Math.ceil(miningWorkers.length / myBuilds["CastleAndFortresses"].length);
+let idleWorkers = scope.getUnits({type: "Worker", player: me, order: "Stop"});
+let allWorkers = scope.getUnits({type: "Worker", player: me});
+let miningWorkers = scope.getUnits({type: "Worker", player: me, order: "Mine"});
+let repairingWorkers = scope.getUnits({type: "Worker", player: me, order: "Repair"});
+let workerToCastleRatio = Math.ceil(miningWorkers.length / myBuilds["CastleAndFortresses"].length);//how many workers there are for each castle.
 
-var combatUnitProducerToCastleRatio = myBuilds.combatUnitProducers.length / (scope.getBuildings({type: "Castle", player: me, onlyFinshed: true}).concat(myBuilds["Fortresses"])).length;
-
+let combatUnitProducerToCastleRatio = myBuilds.combatUnitProducers.length / (scope.getBuildings({type: "Castle", player: me, onlyFinshed: true}).concat(myBuilds["Fortresses"])).length;
 /**
  * Gets random numbers. See methods inside for details.
  */
@@ -134,7 +142,8 @@ class Randomizer {
             low = 0;
         }
         low = Math.floor(low);
-        var r = Math.random();
+        //let r = new Math.seedrandom(scope.getMyAISeed());
+        let r = Math.random();
         return low + Math.floor(r * (high - low + 1));
     };
     /**
@@ -150,6 +159,7 @@ class Randomizer {
             high = low;
             low = 0;
         }
+        //return low + (high - low) * new Math.seedrandom(scope.getMyAISeed());
         return low + (high - low) * Math.random();
     };
     /**
@@ -162,13 +172,14 @@ class Randomizer {
         if(typeof probabilityTrue === "undefined"){
             probabilityTrue = 0.5;
         }
+        //return new Math.seedrandom(scope.getMyAISeed()) < probabilityTrue;
         return Math.random() < probabilityTrue;
     };
 }
 
 if(!scope.initailized){
-    // console.log("Player: ", scope.getMyPlayerNumber(), "I am Hurricane AI");
    scope.initailized = true;
+   scope.shouldUpdate = true;
    /**
      * Gets the combat power of a unit. If the unit
      * is not defined in scope.unitPower, it will 
@@ -179,13 +190,21 @@ if(!scope.initailized){
      * @returns {number} - the combat power of the unit
      */
     scope.getPowerOf = function(unit){
-        if(unit != undefined && scope.unitPower[unit.getTypeName()] != undefined){
-            return scope.unitPower[unit.getTypeName()] * (unit.getValue("hp") / unit.getFieldValue("hp"));
-        }else{
-            return 0;
+        try{
+            if(unit != undefined && unit.getCurrentHP() > 0 && scope.unitPower[unit.getTypeName()] != undefined){
+                return scope.unitPower[unit.getTypeName()] * (unit.getValue("hp") / unit.getFieldValue("hp"));
+            }else{
+                return 0;
+            }
+        }catch(e){
+            throw new Error(JSON.stringify(unit));
         }
     }
-   scope.buildingSizes = {
+    
+    scope.nextTalkTick = Randomizer.nextInt(5, 10);
+
+    //The sizes of various buildings. [length, width]
+    scope.buildingSizes = {
         "House": [3, 3],
         "Barracks": [3, 3],
         "Watchtower": [2, 2],
@@ -204,6 +223,8 @@ if(!scope.initailized){
         "Snake Charmer": [2, 2],
     }
     
+    //Priorities of various buildings. A higher priority means a unit is more likely
+    //to be picked.
     scope.buildPrio = {
         "House": 0,
         "Barracks": 0,
@@ -220,8 +241,9 @@ if(!scope.initailized){
         "Advanced Workshop": 0,
         "Mill": 0,
         "Snake Charmer": 0,
-    }//default
+    }
     
+    //Same thing as above, only with units
     scope.unitPrio = {
         "Worker": 0,
         "Bird": 0,
@@ -241,6 +263,7 @@ if(!scope.initailized){
         "Airship": 0,
     }
     
+    //Where a unit is produced. Correlates to myBuilds.
     scope.unitProducedAt = {
         "Bird": "CastleAndFortresses",
         "Worker": "CastleAndFortresses",
@@ -259,23 +282,45 @@ if(!scope.initailized){
         "Ballista": "Advanced Workshops",
         "Airship": "Advanced Workshops",
     }
+
+    //The typeName of where each unit is produced at. Uses the typeName,
+    //so you can use scope.getBuildings() with this function. Does not
+    //correlate with myBuilds.
+    scope.unitProducedAtTypeName = {
+        "Bird": "Castle",
+        "Worker": "Castle",
+        "Soldier": "Barracks",
+        "Archer": "Barracks",
+        "Mage": "Barracks",
+        "Priest": "Church",
+        "Raider": "Barracks",
+        "Snake": "Wolves Den",
+        "Wolf": "Wolves Den",
+        "Werewolf": "Werewolves Den",
+        "Dragon": "Dragon Lair",
+        "Gyrocraft": "Mill",
+        "Gatling Gun": "Workshop",
+        "Catapult": "Workshop",
+        "Ballista": "Advanced Workshop",
+        "Airship": "Advanced Workshop",
+    }//The actualy type name in the game, versus the name in scope.myBuilds.
     
     scope.unitPower = {//used to calculate how much of a threat an enemy is
         "Worker": 0,
         "Soldier": 1,
         "Archer": 1,
         "Mage": 1.25,
-        "Priest": 1.25,
+        "Priest": 1.2,
         "Raider": 1.25,
-        "Wolf": 0.6,
-        "Snake": 0.6,
+        "Wolf": 0.7,
+        "Snake": 0.7,
         "Werewolf": 4,
-        "Dragon": 3,
+        "Dragon": 1.5,
         "Airship": 0,
-        "Gatling Gun": 1.2,
+        "Gatling Gun": 1.3,
         "Gyrocraft": 1,
         "Catapult": 1.5,
-        "Ballista": 1,
+        "Ballista": 1.25,
         "Bird": 0,
         "Healing Ward": 1,
     };
@@ -288,21 +333,21 @@ if(!scope.initailized){
      * multiplied by the attackThreshold.
      */
     scope.allSubMetaPrios = {
-        "Barracks": {
+        "Barracks": {//Barracks meta
             "Balanced": {
                 "Buildings": ["Barracks"],
-                "Units": ["Soldier", "Archer", "Raider"],
+                "Units": ["Soldier", "Archer", "Raider", "Airship"],
                 "Upgrades": ["Forge"],
                 "Misc": {"attackThreshold": 1.8, "maxProducers": 10, "opener": true},
             },
             "Magical": {
-                "Buildings": ["Barracks", "Church"],
-                "Units": ["Mage", "Priest", "Raider"],
+                "Buildings": ["Barracks", "Church", "Mages Guild", "Advanced Workshop"],
+                "Units": ["Mage", "Priest", "Raider", "Airship"],
                 "Upgrades": ["Fireball", "Invisibility", "Forge"],
                 "Misc": {"attackThreshold": 1.8, "singleProduction": ["Mages Guild"], "maxProducers": 10, "opener": false},
             }
         },
-        "Beast": {
+        "Beast": {//Beast meta
             "WolfSnakeSpam": {
                 "Buildings": ["Wolves Den", "Snake Charmer"],
                 "Units": ["Wolf", "Snake"],
@@ -324,7 +369,7 @@ if(!scope.initailized){
             "WolfSpam": {
                 "Buildings": ["Wolves Den"],
                 "Units": ["Wolf"],
-                "Upgrades": [],
+                "Upgrades": ["Animal Testing Lab"],
                 "Misc": {"attackThreshold": 2.5, "maxProducers": 16, "opener": true},
             },
             "DragonSpamRush": {
@@ -334,35 +379,35 @@ if(!scope.initailized){
                 "Misc": {"attackThreshold": 1.7, "maxProducers": 12, "opener": false},
             },
         },
-        "Mechanical": {
+        "Mechanical": {//Mech meta
             "CatapultSpam": {
-                "Buildings": ["Workshop"],
-                "Units": ["Catapult"],
+                "Buildings": ["Workshop", "Advanced Workshop"],
+                "Units": ["Catapult", "Airship"],
                 "Upgrades": ["Forge"],
                 "Misc": {"attackThreshold": 2.1, "maxProducers": 10, "opener": false},
             },
             "GatlingGunSpam": {
                 "Buildings": ["Workshop"],
-                "Units": ["Gatling Gun"],
+                "Units": ["Gatling Gun", "Airship"],
                 "Upgrades": ["Forge"],
-                "Misc": {"attackThreshold": 2, "maxProducers": 10, "opener": true},
+                "Misc": {"attackThreshold": 2, "maxProducers": 10, "opener": false},
             },
             "CatapultGatlingGunSpam": {
-                "Buildings": ["Workshop"],
-                "Units": ["Gatling Gun", "Catapult"],
+                "Buildings": ["Workshop", "Advanced Workshop"],
+                "Units": ["Gatling Gun", "Catapult", "Airship"],
                 "Upgrades": ["Forge"],
                 "Misc": {"attackThreshold": 2.2, "maxProducers": 10, "opener": true},
             },
             "GyrocraftSpam" : {
                 "Buildings": ["Mill"],
-                "Units": ["Gyrocraft"],
+                "Units": ["Gyrocraft", "Airship"],
                 "Upgrades": ["Forge"],
                 "Misc": {"singleProduction": ["Workshop"], "attackThreshold": 3, "maxProducers": 14, "opener": false},
             }
         }
     }
     
-    var metas = ["Barracks",
+    let metas = ["Barracks",
                  "Beast", 
                  "Mechanical"
                  ];//various large-scale strategies the bot can use
@@ -373,13 +418,13 @@ if(!scope.initailized){
         "Mechanical": ["CatapultSpam", "GatlingGunSpam", "CatapultGatlingGunSpam", "GyrocraftSpam"],
     }//sub-strategies within various metas.
     
-    for(var i = 0; i < Randomizer.nextInt(1, 10); i++){
+    for(let i = 0; i < Randomizer.nextInt(1, 10); i++){
         scope.meta = metas[Randomizer.nextInt(0, metas.length - 1)];//fetches a meta
     }//Oftentimes, several bots in a multiplayer will choose the same meta because 
     //of js magic. This for loop tries to add another layer of randomness to stop that.
     
     while(true){
-        for(var i = 0; i < Randomizer.nextInt(1, 5); i++){
+        for(let i = 0; i < Randomizer.nextInt(1, 5); i++){
             scope.subMeta = scope.allSubMetas[scope.meta][Randomizer.nextInt(0, scope.allSubMetas[scope.meta].length - 1)];//fetches a submeta
         }
         if(scope.allSubMetaPrios[scope.meta][scope.subMeta]["Misc"].opener == true){
@@ -418,22 +463,20 @@ if(!scope.initailized){
     scope.onlyProduceOneOfThese = [];
     scope.tickrate = {
         "Scout": Randomizer.nextInt(30, 100),
-        "Attack": Randomizer.nextInt(20, 30),
-        "Defend": Randomizer.nextInt(2, 4),
-        "Build": Randomizer.nextInt(3, 6),
+        "Attack": Randomizer.nextInt(20 / DIFFICULTY, 30 / DIFFICULTY),
+        "Defend": Randomizer.nextInt(2 / DIFFICULTY, 4 / DIFFICULTY),
+        "Build": Randomizer.nextInt(3 / DIFFICULTY, 6 / DIFFICULTY),
         "BuildCastle": Randomizer.nextInt(6, 15),
-        "Repair": Randomizer.nextInt(3,5),
+        "Repair": Randomizer.nextInt(3 / DIFFICULTY, 5 / DIFFICULTY),
         "ArmyBrain": Randomizer.nextInt(2, 3),//kiting, retreating
-        "Train": Randomizer.nextInt(2, 4),
+        "Train": Randomizer.nextInt(2 / DIFFICULTY, 5 / DIFFICULTY),
+        "KiteAndRetreat": Randomizer.nextInt(2 / DIFFICULTY, 3 / DIFFICULTY),
     }//how often the bot runs various functions/methods
     
-    scope.mechRepairPercent = Randomizer.nextFloat(0.05, 0.25);
+    scope.mechRepairPercent = Randomizer.nextFloat(0.1, 0.2);
     scope.mechRepairSquad = [];
     
-    beginBotChat();
-    
-    scope.trainingModeOn = false;
-    if(scope.trainingModeOn === true){
+    if(trainingModeOn === true){
         scope.mute = true;
     }else{
         scope.mute = false;
@@ -443,26 +486,76 @@ if(!scope.initailized){
 
     //At the beginning, cluster buildings together more.
     if(scope.startUnminedMines.length > 0){
-        scope.defaultBuildRad = 6;
-    }else{
         scope.defaultBuildRad = 8;
+    }else{
+        scope.defaultBuildRad = 10;
+    }
+
+    scope.maxBuildingRepairers = Randomizer.nextInt(1, 3);
+
+    scope.allArmiesByID = {};
+
+    scope.proxied = false;
+
+    if(scope.meta == "Beast"){
+        scope.buildOrder = [["Worker", 2], ["House"], ["Worker"], ["Wolves Den"], ["Worker"], ["Wolf", 2], ["Castle"], ["Wolf"], ["House"], ["Wolf"], ["Worker"]];
+    }else if(scope.meta == "Barracks"){
+        scope.buildOrder = [["Worker", 2], ["House"], ["Worker"], ["Barracks"], ["Worker"], ["Archer", 3], ["House"], ["Castle"], ["Worker"]];
+    }else if(scope.meta == "Mechanical"){
+        scope.buildOrder = [["Worker", 2], ["House"], ["Worker"], ["Workshop"], ["Worker"], ["Gatling Gun", 4], ["House"], ["Castle"], ["Worker"]];
     }
     
-    //scope.chatMsg(getMyColor() + ": " + metas[Randomizer.nextInt(0, metas.length - 1)] + ", " + scope.allSubMetas[scope.meta][Randomizer.nextInt(0, scope.allSubMetas[scope.meta].length - 1)]);
-}
+    //If we start out with more stuff than normal
+    if(scope.getUnits({player: me}) > 7 || myBuilds["CastleAndFortresses"].length > 1){
+        scope.buildOrder = [];
+    }
+    
+    scope.buildOrderMisc = {"workerScout": false, "proxyChance": 0}
+    scope.buildOrder.forEach((order) => {order[1] = order[1] == undefined ? 1 : order[1]});
+    scope.usingBuildOrder = scope.buildOrder.length > 0 ? true : false;
+    if(scope.usingBuildOrder){
+        scope.maxWorkersOnBase = Infinity;
+    }else{
+        scope.buildOrderMisc["workerScout"] = 1;
+    }
+    
+    
+    scope.proxyChance = scope.buildOrderMisc.proxyChance == undefined ? 0.15 : scope.buildOrderMisc.proxyChance;
+    //scope.chatMsg(getMyColor() + "'s proxy chance: " + scope.proxyChance);
 
+    if(scope.meta === "Beast"){
+        scope.maxCombatUnitProducerToCastleRatio = 4;
+    }else if(scope.meta === "Barracks"){
+        scope.maxCombatUnitProducerToCastleRatio = 2;
+    }else if(scope.meta === "Mechanical"){
+        scope.maxCombatUnitProducerToCastleRatio = 2;
+    }
+
+    scope.significantAirThreat = false;
+
+    scope.priorityBuild = null;
+    scope.evacedWorkers = {};
+
+    scope.maxEnPowerEncountered = 3;//Don't attack until we can at least take out three power.
+    
+    scope.lastTimeDropped = -999;
+    
+    //scope.chatMsg(getMyColor() + ": " + metas[Randomizer.nextInt(0, metas.length - 1)] + ", " + scope.allSubMetas[scope.meta][Randomizer.nextInt(0, scope.allSubMetas[scope.meta].length - 1)]);
+}//end init  
+
+
+
+let chatAtEnd = [];
 
 /**
  * A class that builds a building within a bounding box of a x and y.
  * Passed an object with the following values set:
  * 
- * @param centerX - the center of the bounding box in the x axis
- * @param centerY - the center of the bounding box in the y axis
- * @param buildRad - the radius of the bounding box.
+ * @param {number} centerX - the center of the bounding box in the x axis
+ * @param {string} building - 
+ * @param {number} centerY - the center of the bounding box in the y axis
+ * @param {number} buildRad - the radius of the bounding box.
  * 
- * There are many other options, see inside the constructor for details on them.
- * I also spent way too much time adding getters and setters, so appricate that
- * please.
  */
 class RandBuild {
     constructor(obj){
@@ -510,9 +603,15 @@ class RandBuild {
             "dontBuild": 0,
             "checkline": 0,
         }
-        scope.myPower = 999999;
 
         this.pad = 1;
+        this.minObstructions = 0;//If you want the building to be built near
+        //obstructions, this is how many squares need to be classified as
+        //obstructions within the padding zone.
+        //The padding zone is the zone beyond the actual building that is
+        //checked for obstructions.
+        this.maxObstructions = 0;
+
         //scope.chatMsg(this.centerX + ", " + this.centerY);
     }
     
@@ -523,33 +622,62 @@ class RandBuild {
      * {x: foo, y: foo}
      */
     findSuitableSpot(){
-        for(var i = 0; i < this.dontBuild.length; i++){
+        if(this.heightComparisonIsPreferred === true && this.heightComparison === undefined){
+            throw new TypeError("You must pass a valid height comparison in order for preferred height comparison to work!")
+        }
+
+        //Makes sure that the bouding box is within the map, and if it's not, trim it down 
+        //to not waste processing power on things outside of the map anyway.
+        this.endBoundingBoxX = (this.centerX + this.buildRad - this.buildWidth) < scope.getMapWidth() ? (this.centerX + this.buildRad - this.buildWidth) : (scope.getMapWidth() - this.buildWidth);//rightmost x
+        this.endBoundingBoxY = (this.centerY + this.buildRad - this.buildHeight) < scope.getMapHeight() ? (this.centerY + this.buildRad - this.buildHeight) : (scope.getMapHeight() - this.buildHeight);//rightmost y
+        this.startBoundingBoxX = (this.centerX - this.buildRad) < 0 ? 0 : (this.centerX - this.buildRad);//leftmost x
+        this.startBoundingBoxY = (this.centerY - this.buildRad) < 0 ? 0 : (this.centerY - this.buildRad);//leftmost y
+
+        //Stuff that shouldn't be built around.
+        //Converts the arrays into coordinates.
+        for(let i = 0; i < this.dontBuild.length; i++){
             if(this.dontBuild[i][2] === undefined){
                 this.dontBuild[i][2] = 1;
             }
         }
-        if(this.heightComparisonIsPreferred === true && this.heightComparison === undefined){
-            throw new TypeError("You must pass a valid height comparison in order for preferred height comparison to work!")
-        }
         
-        this.oldBuildRad = this.buildRad;
+        this.oldBuildRad = this.buildRad;//Used in case a preferredBuildRad is set.
+        //This will revert the preferredBuildRad to the original build rad.
+
         if(this.preferredBuildRad != null){
             this.buildRad = this.preferredBuildRad;
         }
         //Fail types for debugging purposes
-        var SENTINEL = 0;//squares checked
-        var placesChecked = 0;
-        var distanceFormulaFails = 0;//Minimum distance fails
-        var pathableFails = 0;
-        var fieldIsRampFails = 0;
-        var heightFails = 0;//actually height difference fails, so if you set this.heightComparison to something and a square fails that, then this will be triggered.
-        var dontBuildFails = 0;
-        var checklineFails = 0;
+        let SENTINEL = 0;//squares checked
+        let placesChecked = 0;
+        let distanceFormulaFails = 0;//Minimum distance fails
+        let pathableFails = 0;//Fails from non-pathabales (buildings, mines, etc.)
+        let fieldIsRampFails = 0;
+        let heightFails = 0;//actually height difference fails, so if you set this.heightComparison to something and a square fails that, then this will be triggered.
+        let dontBuildFails = 0;
+        let checklineFails = 0;//From the checkline. The checkline checks in a line between the proposed spot and the center to see if there
+        //are ravines, blockers, etc.
         
-        
+        let doCheckHeight = true;
+        let sucess = true;
+        let dontCheckThese = [];
+        if(this.building === "Castle"){
+            let upperLeftCorner = {x: this.centerX - 1.5, y: this.centerY - 1.5};
+            for(let x = 0; x < 3; x++){
+                for(let y = 0; y < 3; y++){
+                    dontCheckThese.push([upperLeftCorner.x + x, upperLeftCorner.y + y]);
+                }
+            }//Omits the goldmine from the checks
+        }
+
+        this.getNewLocation();//Fencepost problem. Because tryTheseFirst and dontBuild are checked when a new location is found,
+        //get a location at the start.
+
         while(true){
+            this.paddingObstructions = 0;//how many obstructions were found in the padding.
+            //Padding is the area around the actual building being checked. Used in proxies.
             placesChecked ++;
-            var sucess = true;
+            sucess = true;
             if(placesChecked === Math.round(this.maxTries / 2)){
                 this.buildRad = this.oldBuildRad;
             }
@@ -560,14 +688,6 @@ class RandBuild {
                  * (centerX , centerY) and (buildX, buildY) to make sure that there
                  * are no ravines or obstacles in between the two points.
                  */
-                var upperLeftCorner = {x: this.centerX - 1.5, y: this.centerY - 1.5};
-
-                var dontCheckThese = [];
-                for(var x = 0; x < 3; x++){
-                    for(var y = 0; y < 3; y++){
-                        dontCheckThese.push([upperLeftCorner.x + x, upperLeftCorner.y + y]);
-                    }
-                }//Omits the goldmine from the checks
 
                 sucess = checkAlongLine(this.centerX, this.centerY, this.buildX + this.buildWidth / 2, this.buildY + this.buildHeight / 2, this.heightComparison, dontCheckThese, true);
                 if(sucess === false){
@@ -577,15 +697,21 @@ class RandBuild {
             }
             
             if(sucess === true){
-                for(var x = Math.floor(this.buildX - this.pad); x < Math.ceil(this.buildX + this.buildWidth) + this.pad; x++){
-                    for(var y = Math.floor(this.buildY - this.pad); y < Math.ceil(this.buildY + this.buildHeight) + this.pad; y++){
+                //Checks the building and it's surroundings for suitability.
+                const maxX = Math.ceil(this.buildX + this.buildWidth) + this.pad;
+                const maxY = Math.ceil(this.buildY + this.buildHeight) + this.pad;
+                for(let x = Math.floor(this.buildX - this.pad); x < maxX; x++){
+                    for(let y = Math.floor(this.buildY - this.pad); y < maxY; y++){
                         SENTINEL++;
                         if(SENTINEL > this.maxTries * 10){
                             break;
                         }
-                        var squareIsGood = true;
+
+                        let squareIsGood = true;
+                        let isPathable = true;
                         if(scope.positionIsPathable(x, y) === false){
                             squareIsGood = false;
+                            isPathable = false;
                             pathableFails++;
                         }else if(scope.fieldIsRamp(x, y) === true){
                             squareIsGood = false;
@@ -593,46 +719,61 @@ class RandBuild {
                         }
                         
                         if(x >= this.buildX && x < this.buildX + this.buildWidth && y >= this.buildY && y < this.buildY + this.buildHeight){
-                            if(distanceFormula(x, y, this.centerX, this.centerY) < this.minDisFromCenter - this.buildWidth / 2){
-                                squareIsGood = false;
-                                distanceFormulaFails++;
-                            }
-                            if(this.building === "Castle"){
-                                //If the building is a castle, check to make sure it's not
-                                //within the radius of another mine.
-                                var mines = scope.getBuildings({type: "Goldmine"});
-                                mines.forEach(function(mine){
-                                    if(distanceFormula(mine.getX() + 1, mine.getY() + 1, x, y) < 6.5){
-                                        squareIsGood = false;
-                                        distanceFormulaFails++;
+                            //if the actual proposed structure is being checked
+                            if(squareIsGood === true){
+                                if(distanceFormula(x, y, this.centerX, this.centerY) < this.minDisFromCenter - this.buildWidth / 2){
+                                    squareIsGood = false;
+                                    distanceFormulaFails++;
+                                }//If the building is too close to the center
+
+                                if(this.building === "Castle"){
+                                    //If the building is a castle, check to make sure it's not
+                                    //within the radius of another mine.
+                                    let mines = scope.getBuildings({type: "Goldmine"});
+                                    mines.forEach(function(mine){
+                                        if(distanceFormula(mine.getX() + 1, mine.getY() + 1, x, y) < 6.5){
+                                            squareIsGood = false;
+                                            distanceFormulaFails++;
+                                        }
+                                    });
+                                }
+
+                                if(this.heightComparisonIsPreferred === true){
+                                    //If there is a height comparison set, check if we should turn off the height checker.
+                                    if(placesChecked > this.maxTries / 2){
+                                        doCheckHeight = false;
                                     }
-                                });
-                            }
-                            var doCheckHeight = true;
-                            if(this.heightComparisonIsPreferred === true){
-                                if(placesChecked > this.maxTries / 2){
-                                    doCheckHeight = false;
+                                }
+                                if(doCheckHeight === true && this.heightComparison != undefined && this.heightComparison != scope.getHeightLevel(x, y)){
+                                    squareIsGood = false;
+                                    heightFails++;
                                 }
                             }
-                            if(doCheckHeight === true && this.heightComparison != undefined && this.heightComparison != scope.getHeightLevel(x, y)){
-                                squareIsGood = false;
-                                heightFails++;
+                        }else{
+                            //If the padding is being checked
+                            if(isPathable === false){
+                                this.paddingObstructions++;
+                                if(this.paddingObstructions < this.maxObstructions){
+                                    squareIsGood = true;
+                                }//If there are too many obstructions
                             }
-                        }//if the actual proposed structure is being checked
+                        }
                         
-                        
-                        //If the square is bad, find a new spot.
                         if(squareIsGood === false){
                             //breaks the loop
                             x = Math.ceil(this.buildX + this.buildWidth) + 1;
                             y = Math.ceil(this.buildY + this.buildHeight) + 1;
-                            this.getNewLocation();
+
+                            this.getNewLocation();//gets a new location
                             sucess = false;
                         }//This block only runs if the square is bad, and attempts to find a good spot. 
                     }
-                    
                 }//Checks the surrounding area and the build to make sure there is no obstructions
                 //and all other conditions are fufilled.
+
+                if(this.paddingObstructions < this.minObstructions){
+                    sucess = false;
+                }//if there are too little obstructions
             }
             if(sucess === true){
                 break;
@@ -644,6 +785,7 @@ class RandBuild {
             }
         }
         
+        //debug stuff
         this.fails["squares"] = SENTINEL;
         this.fails["places"] = placesChecked;
         this.fails["minDist"] = distanceFormulaFails;
@@ -654,7 +796,27 @@ class RandBuild {
         this.fails["checkline"] = checklineFails;
         
 
-
+        //If we couldn't find a position
+        if(this.buildX == null || this.buildY == null){
+            let copy = {};
+            let maxFails = 0;
+            for(let key in this.fails){
+                let numFails = this.fails[key];
+                if(key === "squares"){
+                    copy["squares"] = numFails;
+                }else if(key === "places"){
+                    copy["places"] = numFails;
+                }else{
+                    if(numFails > maxFails){
+                        copy["maxFails"] = "key: " + key + ", numFails: " + numFails;
+                        maxFails = numFails;
+                    }
+                }
+            }
+            //scope.chatMsg(getMyColor() + ": attempted build " + this.building + " has failed.");
+            //scope.chatMsg(JSON.stringify(copy));
+            return null;
+        }
 
         //scope.chatMsg(me + ": Sqrs: " + SENTINEL + ", Places: " + placesChecked + ", Fails: minDist: " + distanceFormulaFails + " Path: " + pathableFails + " Ramp: " + fieldIsRampFails + " Height: " + heightFails + " dontBuild: " + dontBuildFails);
         //scope.chatMsg(getMyColor() + ": " + JSON.stringify(this.fails));
@@ -668,8 +830,8 @@ class RandBuild {
      * @returns {object} - an object containing the coordniates of a new location.
      */
     getNewLocation(){
-        var SENTINEL2 = 0;
-        var shouldBreak = false;
+        let SENTINEL2 = 0;
+        let shouldBreak = false;
         while(shouldBreak === false){
             SENTINEL2++;
 
@@ -679,27 +841,28 @@ class RandBuild {
             }
             
             if(this.tryTheseFirst.length <= 0){
-                this.buildX = Randomizer.nextInt(this.centerX - this.buildRad, this.centerX + this.buildRad - this.buildWidth);
-                this.buildY = Randomizer.nextInt(this.centerY - this.buildRad, this.centerY + this.buildRad - this.buildHeight);
+                //If there's nothing to try first, find a random location.
+                this.buildX = Randomizer.nextInt(this.startBoundingBoxX, this.endBoundingBoxX);
+                this.buildY = Randomizer.nextInt(this.startBoundingBoxY, this.endBoundingBoxY);
             }else{
-                var relative = true;
-                if(this.tryTheseFirst[0][2] === false){
-                    relative = false;
-                }
+                //If there's some coordinates to try, use them first.
+                let relative = this.tryTheseFirst[0][2] === false ? false : true;
                 if(relative === true){
+                    //If the coordinates are relative ((centerX, centerY) is the center)
                     this.buildX = Math.round(this.centerX + this.tryTheseFirst[0][0]);
                     this.buildY = Math.round(this.centerY + this.tryTheseFirst[0][1]);
                 }else{
+                    //If the coordinates are non-relative (centered on (0, 0) on the map)
                     this.buildX = Math.round(this.tryTheseFirst[0][0] - 1);
                     this.buildY = Math.round(this.tryTheseFirst[0][1] - 1);
                 }
                 this.tryTheseFirst.splice(0, 1);
             }
             
-            //Checks the array dontBuild to make sure that the proposed spot is not close
-            var dontBuildFailed = false;
-            for(var i = 0; i < this.dontBuild.length; i++){
-                var dist = distanceFormula(this.buildX + this.buildWidth / 2, this.buildY + this.buildHeight / 2, this.dontBuild[i][0], this.dontBuild[i][1]);
+            //Checks the array dontBuild to make sure that the proposed spot is not too close
+            let dontBuildFailed = false;
+            for(let i = 0; i < this.dontBuild.length; i++){
+                let dist = distanceFormula(this.buildX + this.buildWidth / 2, this.buildY + this.buildHeight / 2, this.dontBuild[i][0], this.dontBuild[i][1]);
                 if(dist < this.dontBuild[i][2]){
                     dontBuildFailed = true;
                     shouldBreak = false;
@@ -709,7 +872,8 @@ class RandBuild {
             }
             
             if(dontBuildFailed === false){
-                if(Math.round(distanceFormula(this.buildX + this.buildWidth / 2, this.buildY + this.buildHeight / 2, this.centerX, this.centerY) + this.buildWidth / 2) >= this.minDisFromCenter){
+                //Checks if it's far enough from the center
+                if(distanceFormula(this.buildX + this.buildWidth / 2, this.buildY + this.buildHeight / 2, this.centerX, this.centerY) + this.buildWidth / 2 >= this.minDisFromCenter){
                     shouldBreak = true;
                 }else{
                     this.fails["minDist"]++;
@@ -732,350 +896,6 @@ class RandBuild {
         }
         scope.order("Build " + this.building, this.buildWorkers, obj);
     }
-    
-    //GETTERS
-    //--------------------------------------------------------------------------
-    
-    /**
-     * Gets the bounding box's radius.
-     * @returns {integer} - The buildradius of the build.
-     */
-    getBoundingBoxRad(){
-        return this.buildRad;
-    }
-    
-    /**
-     * For debugging purposes. Returns an object with various fail statistics.
-     * 
-     * @returns {object} - An object with statistics on failure reasons, such
-     *  as pathable fails, ramp fails, minimum distance fails, etc.
-     */
-    getFailedAttempts(){
-        return this.fails;
-    }
-    
-    /**
-     * Returns the current minimum distance set.
-     * 
-     * @returns {number} - The current miniumum distance.
-     */
-    getMinDist(){
-        return this.minDisFromCenter;
-    }
-    
-    /**
-     * Returns the building's set building width, as in how wide the building is
-     * 
-     * @returns {number} - RandBuild's build width listed for the building. Note
-     *  that if the building is unlisted or unknown, such as in a modded map,
-     *  this may return undefined.
-     */
-    getBuildWidth(){
-        return this.buildWidth;
-    }
-    
-    /**
-     * Returns the building's set building width, as in how tall the building is
-     * 
-     * @returns {number} - RandBuild's build height listed for the building. 
-     *  Note that if the building is unlisted or unknown, such as in a modded
-     *  map, this may return undefined.
-     */
-    getBuildHeight(){
-        return this.buildHeight;
-    }
-    
-    /**
-     * Returns the RandBuild's build worker array.
-     *  
-     * @returns {array} - What workers will be assigned to carry out the grisly
-     * task of constructing the building. Note that LWG will automatically
-     * get the closest worker from this array using the A* formula to build the
-     * building. Default build workers is mining workers.
-     */
-    getBuildWorkers(){
-        return this.buildWorkers;
-    }
-    
-    /**
-     * Returns the current array of coordinates that will be tried first. Note
-     * that if findSuitableSpot() has been called before getTryTheseFirst() is 
-     * called, the array will be empty because findSuitableSpot() splices out
-     * the coordinates in tryTheseFirst it has already tried.
-     * 
-     * @returns {array} - An array of UNTRIED coordinates that 
-     * findSuitableSpot() will try when it is called.
-     * 
-     */
-    getTryTheseFirst(){
-        return this.tryTheseFirst;
-    }
-    
-    /**
-     * Returns the height level that findSuitableSpot() will try to keep the
-     * build on. Note that if heightComparisonIsPreferred is set to true, this
-     * height comparison will only be used for half of findSuitableSpot()'s 
-     * attempts, with the other half not caring what the height comparison is
-     * set to.
-     * 
-     * @returns {number} - Returns whatever the height comparison is set to.
-     */
-    getHeightComparison(){
-        return this.heightComparison;
-    }
-    
-    /**
-     * Returns if height comparison is preferred, or if it is absolute. If
-     * returns false, then findSuitableSpot() will only find spots that are
-     * on the same height level as whatever heightComparison is set to.
-     * 
-     * @returns {boolean} - If height comparison is preferred.
-     */
-    getHeightComparisonIsPreferred(){
-        return this.heightComparisonIsPreferred;
-    }
-    
-    /**
-     * Gets the maximum amount of spots findSuitableSpot() will attempt before
-     * the Sentinel triggers.
-     * 
-     * @returns {number} - Maximum amount of tries.
-     */
-    getMaxTries(){
-        return this.maxTries;
-    }
-    
-    /**
-     * Gets the places that findSuitableSpot will not build at.
-     * 
-     * @returns {array} - a list of coordinates and radiuses that
-     * findSuitableSpot() will not build within. Elements within the list are
-     * formatted like so:
-     * [x, y, radius(exclusive)]
-     */
-    getDontBuild(){
-        return this.dontBuild;
-    }
-    
-    //SETTERS
-    //-------------------------------------------------------------------------
-    
-    /**
-     * Sets the build radius of the bounding box. For example, if the radius
-     * is 2:
-     * 
-     *  ---4---
-     *  _ _ _ _  
-     * |       | |
-     * |       | 4
-     * |       | |
-     * | _ _ _ | |
-     * 
-     * 
-     * If the radius is set to 4:
-     * ------- 8 -------
-     *  _ _ _ _ _ _ _ _  
-     * |               |  |
-     * |               |  |
-     * |               |  |
-     * |               |  8
-     * |               |  |
-     * |               |  |
-     * |               |  |
-     * | _ _ _ _ _ _ _ |  |
-     * 
-     * @param {number} rad - radius of the bounding box. See above for details.
-     */
-    setBuildRad(rad){
-        this.buildRad = rad;
-    }
-    
-    /**
-     * Sets the minimum distance from the center of the build.
-     * 
-     * @param {number} dist - the distance from the center, exclusive
-     */
-    setMinDist(dist){
-        this.minDisFromCenter = dist;
-    }
-    
-    /**
-     * Sets the registered width of the building, as in how big it is. Not 
-     * reccomended.
-     * 
-     * Changing this will change how findSuitableSpot() functions. 
-     * 
-     * @param {number} width - the new registered value of the building width.
-     */
-    setBuildWidth(width){
-        this.buildWidth = width;
-    }
-    
-    /**
-     * Sets the registered height of the building, as in how big it is. Not
-     * reccomended.
-     * 
-     * Changing this will change how findSuitableSpot() functions. 
-     * 
-     * @param {number} height - the new registered value of the building height.
-     */
-    setBuildHeight(height){
-        this.buildHeight = height;
-    }
-    
-    /**
-     * Sets the build workers to a new array of workers. Throws an error if not
-     * passed a array, although objects will pass the error filter (but will
-     * set off other errors later)
-     * 
-     * @param {array} workers - an array of workers to build the structure. The
-     * closest worker will build the building.
-     */
-    setBuildWorkers(workers){
-        if(typeof workers != "object"){
-            throw new TypeError("setBuildWorkers: You must pass a valid worker array! Recieved type: " + typeof workers)
-        }
-        this.buildWorkers = workers;
-    }
-    
-    /**
-     * Add build workers to the buildWorker array.
-     * 
-     * @param {array} workers - an array of workers to be added
-     */
-    addBuildWorkers(workers){
-        if(typeof workers != "object"){
-            throw new TypeError("addBuildWorkers: You must pass a valid worker array! Recieved type: " + typeof workers)
-        }
-        for(var i = 0; i < workers.length; i++){
-            this.buildWorkers.push(workers[i]);
-        }
-    }
-    
-    /**
-     * Sets which coordinates will be tried first. Added like so: 
-     * [[2, 3], [5, 4], [64, 78, false]]
-     * For more info, see the constructor for the RandBuild class.
-     * 
-     * @param {array} coordinates - an array of coordinates that will be tried
-     * first when findSuitableSpot() runs.
-     */
-    setTryTheseFirst(coordinates){
-        if(typeof coordinates != "object"){
-            throw new TypeError("setTryTheseFirst: You must pass a valid coordinate array! Recieved type: " + typeof workers)
-        }
-        this.tryTheseFirst = coordinates;
-    }
-    
-    /**
-     * Pushes coordinates into the tryTheseFirst array.Throws an error if the
-     * typeof the coordinates is not 'object' (an array);
-     * 
-     * @param {array} coordinates - the coordinates that will be added to the
-     * tryTheseFirst array for a particular RandBuild.
-     */
-    addToTryTheseFirst(coordinates){
-        if(typeof coordinates != "object"){
-            throw new TypeError("addToTryTheseFirst: You must pass a valid coordinate array! Recieved type: " + typeof workers)
-        }
-        for(var i = 0; i < coordinates.length; i++){
-            this.tryTheseFirst.push(coordinates[i])
-        }
-    }
-    
-    /**
-     * Sets the height comparison (the height that the build should be)
-     * 
-     * @param {integer} height - the height at which the build should be
-     * located at.
-     */
-    setHeightComparison(height){
-        this.heightComparison = height;
-    }
-    
-    /**
-     * Sets which workers will build the structure. Overrides whatever build
-     * workers were listed before. Throws a error if the type of the workers
-     * argument is not 'object' (array).
-     * 
-     * @param {array} workers - The workers that will build the structure.
-     */
-    setBuildWorkers(workers){
-        if(typeof workers != "object"){
-            throw new TypeError("setBuildWorkers: You must pass a valid worker array! Recieved type: " + typeof workers)
-        }
-        this.buildWorkers = workers;
-    }
-    
-    /**
-     * Adds workers that will build the structure. Throws a error if the type of 
-     * the workers argument is not 'object' (array). Note that because of LWG
-     * magic, only the closet in the entire buildWorkers array will build the
-     * building.
-     * 
-     * @param {array} workers - The workers to add to buildWorkers.
-     */
-    addBuildWorkers(workers){
-        if(typeof workers != "object"){
-            throw new TypeError("addBuildWorkers: You must pass a valid worker array! Recieved type: " + typeof workers)
-        }
-        for(var i = 0; i < workers.length; i++){
-            this.buildWorkers.push(workers[i]);
-        }
-    }
-    
-    /**
-     * Sets the maximum amount of tries that findSuitableSpot() will attempt.
-     * 
-     * @param {integer} tries - The new amount of maximum tries.
-     */
-    setMaxTries(tries){
-        this.maxTries = tries;
-    }
-    
-    /**
-     * Sets if height comparison is preferred. If true, then up to half of the
-     * maximum tries will be limited to whatever the height comaprison is set
-     * to. If set to false, all tries will be limited to whatever the height
-     * comparison is. If set to false, a height comparison must be given. If
-     * the height comparison is undefined but heightComparison is set to true,
-     * an error will be thrown. If the height comparison is undefined, then
-     * findSuitableSpot() will find all height levels to build on.
-     * 
-     * @param {boolean} boolean - if height comparison is preferred.
-     */
-    setIsHeightComparisonPreferred(boolean){
-        if(typeof boolean != "boolean"){
-            throw new TypeError("setIsHeightComparisonPreferred: You must pass a boolean type! Recived type: " + typeof boolean)
-        }
-        this.heightComparisonIsPreferred = boolean;
-    }
-    
-    /**
-     * Sets that maximum amount of tries that findSuitableSpot() will attempt.
-     * 
-     * @param {integer} tries - the maximum amount of tries desired.
-     */
-    setMaxTries(tries){
-        this.maxTries = tries;
-    }
-    
-    /**
-     * Sets the coordinates where findSuitableSpot() will not build. Formatted
-     * like so: [x, y, radius]. Push in an array, or else an error will
-     * be thrown in your face. The paramater coordinates is an array of 
-     * coordinates and radii. You can have multiple in a array that's pushed
-     * in.
-     * 
-     * @param {array} coordinates - an array of coordinates and their radii that
-     * findSuitableSpot() will ignore.
-     */
-    setDontBuild(coordinates){
-        if(typeof coordinates != "object"){
-            throw new TypeError("setDontBuild: Impossible coordinate type, " + typeof coordinates + "!")
-        }
-        this.dontBuild = coordinates;
-    }
 }
 
 
@@ -1083,88 +903,141 @@ class RandBuild {
  * A very general class with many static methods.
  */
 class Us {
+    
+    
     /**
      * Will make the lazy workers work harder.
      */
     static idleWorkersMine(){
-        var mines = getMyMinedMines();
-        
-        var idleCoords = scope.getCenterOfUnits(idleWorkers);
+        let mines = getMyMinedMines();
         if(myBuilds["CastleAndFortresses"].length >= 1){
             //Gets the nearest allied castle, then finds the nearest mine
             //to that castle and sends workers there.
-            var nearestMine = null;
-            var nearestDist = 99999;
-            var nearestCastle = null;
-            
-            for(var i = 0; i < myBuilds["CastleAndFortresses"].length; i++){
-                var castle = myBuilds["CastleAndFortresses"][i];
-                var dist = Math.pow((castle.getX() + 2) - idleCoords.x, 2) + Math.pow((castle.getY() + 2) - idleCoords.y, 2);
-                if(dist < nearestDist){
-                    nearestCastle = castle;
-                    nearestDist = dist;
-                }
-            }
-            
-            nearestDist = 99999;
-            
-            for(var ii = 0; ii < mines.length; ii++){
-                var mine = mines[ii];
-                var dist = distanceFormula(mine.getX() + 1, mine.getY() + 1, nearestCastle.getX() + 1.5, nearestCastle.getY() + 1.5)
-                if(dist < nearestDist){
-                    nearestMine = mine;
-                    nearestDist = dist;
-                }
+
+            for(let i = mines.length - 1; i > -1; i--){
+                let mine = mines[i];
+                (isEnemyAroundBuilding(mine) || mine.getValue("gold") <= 0) ? mines.splice(i, 1) : null;
+            }//Sorts out mines that don't have gold or have enemies around them
+
+            if(mines.length > 0){
+                mines.sort((a, b) => {
+                    return a.getValue("lastWorkerCount") - b.getValue("lastWorkerCount");
+                });//Sorts mines in ascending order based on how many workers are mining the mine
+
+                let minesAndWorkers = [];
+                mines.forEach(mine => {
+                    minesAndWorkers.push({"mine": mine, "numWorkers": mine.getValue("lastWorkerCount")});
+                });//Creates object wrappers to keep track of everything in the next step
+
+                let chatThis = [];
+                minesAndWorkers.forEach(obj => chatThis.push(obj.numWorkers));
+                //scope.chatMsg(JSON.stringify(chatThis));
+
+                let averageArr = [];
+                minesAndWorkers.forEach(obj => averageArr.push(obj.numWorkers));
+
+                let ratio = Math.floor(average(averageArr));
+
+                idleWorkers.forEach(worker => {
+                    if(minesAndWorkers[0].numWorkers >= ratio){
+                        //If the ratio is about good, go to the closest mine.
+                        let closeMines = [];
+                        let nearestCastle = getClosestTo(myBuilds["CastleAndFortresses"], {x: worker.getX(), y: worker.getY()});
+                        let nearestMine = getClosestTo(mines, {x: nearestCastle.getX(), y: nearestCastle.getY()}); 
+                        let nearestDist = distanceFormula(nearestCastle.getX() + 1.5, nearestCastle.getY() + 1.5, nearestMine.getX() + 1, nearestMine.getY() + 1);
+                        mines.forEach(function(mine){
+                            if(distanceFormula(mine.getX() + 1, mine.getY() + 1, nearestCastle.getX() + 1.5, nearestCastle.getY() + 1.5) < Math.floor(nearestDist + 3)){
+                                closeMines.push(mine);
+                            }
+                        });
+                        scope.order("Mine", [worker], {unit: closeMines[Randomizer.nextInt(0, closeMines.length - 1)]});
+                        
+                    }else{
+                        //If the ratio is way off, send the worker to the mine that needs it the most.
+                        scope.order("Mine", [worker], {unit: minesAndWorkers[0].mine});
+                        minesAndWorkers[0].numWorkers++;
+                        if(minesAndWorkers[1] != undefined && minesAndWorkers[0].numWorkers > minesAndWorkers[1].numWorkers){
+                            //scope.chatMsg("Spliced out an index");
+                            minesAndWorkers.splice(0, 1);
+                        }
+                    }
+                });//Assigns idle workers based on how mnay workers are already mining there.
             }
 
-            var closeMines = [];
+            /*
+            let closeMines = [];
             mines.forEach(function(mine){
                 if(distanceFormula(mine.getX() + 1, mine.getY() + 1, nearestCastle.getX() + 1.5, nearestCastle.getY() + 1.5) < nearestDist + 3){
                     closeMines.push(mine);
                 }
             });//If there are mutliple mines that are close (like with Diag), make sure that the bot
             //sends workers to mine them as well.
-            
+            */
+            /*
             idleWorkers.forEach(function(worker){
-                scope.order("Mine", [worker], {unit: closeMines[Randomizer.nextInt(0, closeMines.length - 1)]});
-            });
+                scope.order("Mine", [worker], {unit: mines[0]});
+            });*/
         }
     }
     
     /**
-     * A very general update that is called every few ticks.
+     * A very general update that is called every tick.
      * 
      * Lots of the Us static methods are activated here.
      */
     static update(){
+        if(scope.shouldUpdate === false){
+            return;
+        }
         let times = {};
         let start = new Date();
         if(idleWorkers.length > 0){
             Us.idleWorkersMine();
             times["idleWorkersMine"] = new Date();
         }
+        
+        if(scope.nextTalkTick == time){
+            doBotChat();
+        }
 
-        var myPower = 0;
-
-        for(var i = 0; i < fightingUnits.length; i++){
-            var power = scope.getPowerOf(fightingUnits[i]);
+        //Calculates and updates my power
+        let myPower = 0; 
+        for(let i = 0; i < fightingUnits.length; i++){
+            let power = scope.getPowerOf(fightingUnits[i]);
             if(power != undefined){
                 myPower += power;
             }
         }
         scope.myPower = myPower;
+
+        //Calculates and updates enemy power
+        let enPower = 0;
+        enemyUnits.forEach(unit => {
+            enPower += scope.getPowerOf(unit);
+        });
+        scope.enPower = enPower;
+        scope.maxEnPowerEncountered = Math.max(scope.maxEnPowerEncountered, enPower);
         times["powerCalc"] = new Date();
 
-        if(time % scope.tickrate["BuildCastle"] === 0 || (gold > 350 && gold < 500)){
+        if((time % scope.tickrate["BuildCastle"] === 0 || gold > 350)){
             
-            var lastCastle = scope.firstCastle;
-            var base = new Base(lastCastle.getX(), lastCastle.getY(), false);
+            let lastCastle = scope.firstCastle;
+            let base = new Base(lastCastle.getX(), lastCastle.getY(), false);
             //If there are no (known) enemies or enemy buildings, we are not in a map with no expansions, we are not under attack, and either we have too many workers or we are just starting out and need to grab a quick goldmine for increased production, then build a castle.
-            if(base.nearestMine != undefined && isEnemyAroundPosition(base.nearestMine.getX(), base.nearestMine.getY()) === false && scope.startUnminedMines.length > 0 && scope.underAttack === false && (workerToCastleRatio >= scope.maxWorkersOnBase || (myBuilds["CastleAndFortresses"].length === 1 && allWorkers.length > 8
+            if(base.nearestMine != undefined && isEnemyAroundPosition(base.nearestMine.getX(), base.nearestMine.getY()) === false && scope.startUnminedMines.length > 0 && scope.underAttack === false && (workerToCastleRatio >= scope.maxWorkersOnBase || (myBuilds["CastleAndFortresses"].length === 1 && allWorkers.length > 8 && scope.usingBuildOrder === false && scope.myPower > 0
             ))){
-                if(gold > 350){
+                if(gold >= 350){
                     if(lastCastle != undefined){
                         base.constructCastle();
+
+                        if(scope.getGold() > 350){
+                            //Sometimes the bot will get fat trying to find a new castle
+                            //when there is no current possible position, so if there
+                            //are still funds (order didn't go through) then continue
+                            //training
+                            scope.doTrainUnits = true;
+                            scope.doTrainBuildings = true;
+                        }
                     }
                 }else{
                     scope.doTrainUnits = false;
@@ -1176,7 +1049,7 @@ class Us {
             }
             
             if(myBuilds["CastleAndFortresses"].length === 1 && myBuilds["Houses"].length > 0 && allWorkers.length < 8){
-                //Bot prioritizes a second castle over building barracks
+                //Bot prioritizes a second castle over building houses
                 scope.doBuildBuildings = false;
             }
 
@@ -1194,58 +1067,112 @@ class Us {
             Us.defend();
             times["defend"] = new Date();
         }
+
+        if(time % scope.tickrate["ArmyBrain"] === 0){
+            Army.armyBrain();
+            times["armyBrain"] = new Date();
+        }
+
+        if(time % 3 === 0 && DIFFICULTY >= 1){
+            Us.useTowers();
+            times["useTowers"] = new Date();
+        }
+
+        if(time % 3 === 0 && DIFFICULTY >= 1){
+            Army.manageWorkers();
+            times["manageWorkers"] = new Date();
+        }
         
-        if(time % scope.tickrate["Build"] === 0){
+        if(time % 2 === 0){
+            Army.updateArmies();
+            times["updateArmy"] = new Date();
+        }
+
+        if((time + 1) % 2 == 0 && scope.meta == "Beast" && DIFFICULTY >= 1){
+            Army.pullDamaged();
+            times["pullDamaged"] = new Date();
+        }
+
+        if(time % scope.tickrate["KiteAndRetreat"] === 0){
+            let start2 = new Date();
+            for(let id in scope.allArmiesByID){
+                scope.allArmiesByID[id].kiteAndRetreat();
+            }
+            times["kiteAndRetreat"] = new Date();
+            let end2 = new Date();
+            let diff2 = end2 - start2;
+            if(diff2 > 2){
+                //scope.chatMsg(getMyColor() + ": Kiting and retreating took " + diff2 + " milliseconds.");
+            }
+        }
+
+        if(time % 1 === 0){
+            Us.executeBuildOrder();
+            times["executeBuildOrder"] = new Date();
+        }
+
+        if((time % scope.tickrate["Build"] === 0) || scope.usingBuildOrder === true){
             if(scope.doBuildBuildings === true){//Builds a random building
+                if(scope.usingBuildOrder === false){
+                    Us.reviseBuildPrio();
+                }
                 
-                Us.reviseBuildPrio();
-                
-                var buildThis = findRandomPrioKey(scope.buildPrio);//string typeName of something to build
+                let buildThis = findRandomPrioKey(scope.buildPrio);//string typeName of something to build
                 
                 if(buildThis != undefined){
-                    var randCastle = myBuilds["CastleAndFortresses"][Randomizer.nextInt(0, myBuilds["CastleAndFortresses"].length - 1)];
-                    if(randCastle != undefined){
-                        var build = new RandBuild({building: buildThis, centerX: randCastle.getX(), centerY: randCastle.getY()});
-                        if(scope.meta == "Mechanical"){
+                    gold = scope.getGold();
+                    if(Randomizer.nextBoolean(scope.proxyChance) === true && ((buildThis == "Barracks" && gold >= 125) || (buildThis == "Wolves Den" && gold >= 100) || (buildThis == "Workshop" && gold >= 125)) && myBuilds.combatUnitProducers.length <= 0){
+                        Us.proxyProductionBuild();//Puts out a proxy
+                    }else{
+                        let randCastle = myBuilds["Fortresses"].concat(scope.getBuildings({type: "Castle", player: me, onlyFinshed: true}))[Randomizer.nextInt(0, myBuilds["CastleAndFortresses"].length - 1)];
+                        if(randCastle != undefined){
+                            if(buildThis === "Watchtower" && myBuilds["Watchtowers"].length < myBuilds["CastleAndFortresses"].length){
+                                randCastle = myBuilds["CastleAndFortresses"][myBuilds["CastleAndFortresses"].length - 1];
+                                //Instead of occasionally putting the tower in a place where there is already a tower, put it on
+                                //the newly constructed castle.
+                            }
+                            let build = new RandBuild({building: buildThis, centerX: randCastle.getX(), centerY: randCastle.getY()});
                             build.pad = 2;
-                        }
-                        var lastBuild = myBuilds[buildThis];//Actually the array of all buildings of the same type, not the last build
-                        
-                        build.buildRad = scope.defaultBuildRad;
-
-                        if(lastBuild != undefined && lastBuild.length > 0){
-                            lastBuild = lastBuild[myBuilds[buildThis].length - 1];//now it's the last building.
-                            var lastX = lastBuild.getX();
-                            var lastY = lastBuild.getY();
-                            var buildWidth = build.buildWidth;
-                            build.tryTheseFirst.push([lastX + buildWidth + 1, lastBuild.getY(), false], [lastX - buildWidth - 1, lastY, false]);
+                            let lastBuild = myBuilds[buildThis];//Actually the array of all buildings of the same type, not the last build
                             
-                            build.heightComparison = scope.getHeightLevel(randCastle.getX(), randCastle.getY());
-                            build.heightComparisonIsPreferred = true;//Will attempt to build on the same height level as the base itself, unless there is no other option.
-                        }//For efficency purposes, the bot will try to build buildings of the same type in neat rows.
-                        
-                        if(buildThis === "Watchtower"){
-                            var centerX = randCastle.getX() + 2;
-                            var centerY = randCastle.getY() + 2;
-                            build.tryTheseFirst.push([centerX - 1, centerY + 4, false], [centerX - 1, centerY - 4, false], [centerX + 1, centerY + 4, false], [centerX + 1, centerY - 4, false])
-                        }
-                        
-                        if(myBuilds["Watchtowers"].length > 0 && fightingUnits.length <= 0 && buildThis != "Watchtower"){
-                            var watchtower = myBuilds["Watchtowers"][0];
-                            build.centerX = watchtower.getX() + 1;
-                            build.centerY = watchtower.getY() + 1;
-                            build.preferredBuildRad = 8;
-                        }//If there is a watchtower but there is no other
-                        //defense, cluster buildings around the watchtower
-                        
-                        for(var i = 0; i < allWorkers.length / 3; i++){
-                            var worker = allWorkers[Randomizer.nextInt(0, allWorkers.length - 1)];
-                            build.dontBuild.push([worker.getX(), worker.getY(), 2])
-                        }
-                        
-                        build.buildAt(build.findSuitableSpot());
-                        if(build.fails["places"] > 60){
-                            scope.defaultBuildRad++;
+                            build.buildRad = scope.defaultBuildRad;
+
+                            if(lastBuild != undefined && lastBuild.length > 0){
+                                lastBuild = lastBuild[myBuilds[buildThis].length - 1];//now it's the last building.
+                                let lastX = lastBuild.getX();
+                                let lastY = lastBuild.getY();
+                                let buildWidth = build.buildWidth;
+                                build.tryTheseFirst.push([lastX + buildWidth + 1, lastBuild.getY(), false], [lastX - buildWidth - 1, lastY, false]);
+                                
+                                build.heightComparison = scope.getHeightLevel(randCastle.getX(), randCastle.getY());
+                                build.heightComparisonIsPreferred = true;//Will attempt to build on the same height level as the base itself, unless there is no other option.
+                            }//For efficency purposes, the bot will try to build buildings of the same type in neat rows.
+                            
+                            if(buildThis === "Watchtower"){
+                                let centerX = randCastle.getX() + 2;
+                                let centerY = randCastle.getY() + 2;
+                                build.tryTheseFirst.push([centerX - 1, centerY + 4, false], [centerX - 1, centerY - 4, false], [centerX + 1, centerY + 4, false], [centerX + 1, centerY - 4, false])
+                            }
+                            
+                            if(myBuilds["Watchtowers"].length > 0 && fightingUnits.length <= 0 && buildThis != "Watchtower"){
+                                let watchtower = myBuilds["Watchtowers"][0];
+                                build.centerX = watchtower.getX() + 1;
+                                build.centerY = watchtower.getY() + 1;
+                                build.preferredBuildRad = 8;
+                            }//If there is a watchtower but there is no other
+                            //defense, cluster buildings around the watchtower
+                            
+                            for(let i = 0; i < allWorkers.length; i++){
+                                let worker = allWorkers[i];
+                                build.dontBuild.push([worker.getX(), worker.getY(), 2])
+                            }
+                            let loc = build.findSuitableSpot();
+                            if(loc != null){
+                                build.buildAt(loc);
+                            }
+                            if(build.fails["places"] > 60){
+                                scope.defaultBuildRad++;
+                            }
                         }
                     }
                 }
@@ -1253,17 +1180,19 @@ class Us {
             times["build"] = new Date();
         }
         
-        if(time % scope.tickrate["Train"] === 0){
+        if((time % scope.tickrate["Train"] === 0) || scope.usingBuildOrder === true){
             if(scope.doTrainUnits === true){
-                Us.reviseUnitPrio();
+                if(scope.usingBuildOrder === false){
+                    Us.reviseUnitPrio();
+                }
                 
-                var trainThis = findRandomPrioKey(scope.unitPrio);
+                let trainThis = findRandomPrioKey(scope.unitPrio);
                 if(trainThis != undefined){
                     if(trainThis === "Bird"){
                         //Train a single bird, then find something more
                         //useful to trian.
                         trainUnit("Bird", 1);
-                        var SENTINEL = 0;
+                        let SENTINEL = 0;
                         while(true){
                             SENTINEL++;
                             trainThis = findRandomPrioKey(scope.unitPrio);
@@ -1310,16 +1239,11 @@ class Us {
             times["preventCheese"] = new Date();
         }
         
-        if(time < 5){
+        if(time < 5 && scope.buildOrderMisc["workerScout"] === true){
             Us.workerScout();
         }
         
-        if(time % scope.tickrate["ArmyBrain"] === 0){
-            armyBrain();
-            times["armyBrain"] = new Date();
-        }
-        
-        if(time % 10 === 0){
+        if(time % 10 === 0 && DIFFICULTY >= 1){
             Us.brain();
             times["Us.brain"] = new Date();
         }
@@ -1347,7 +1271,7 @@ class Us {
         let end = new Date();
         let diff = end.getTime() - start.getTime();
         let last = null;
-        for(var key in times){
+        for(let key in times){
             let newLast = times[key].getTime();
             if(last != null){
                 times[key] = Math.round(times[key].getTime() - last);
@@ -1355,14 +1279,40 @@ class Us {
                 times[key] = Math.round(times[key].getTime() - start.getTime());
             }
 
-            if(last == times[key]){
+            if(Math.floor(last) == Math.floor(times[key])){
                 delete times[key];
             }
             last = newLast;
         }
         if(diff > 2){
             //scope.chatMsg(getMyColor() + "'s operations took " + diff + " milliseconds."); 
-            //scope.chatMsg("Breakdown: " + JSON.stringify(times));
+            //scope.chatMsg(getMyColor() + ": " + JSON.stringify(times).replaceAll(",", ", "));
+        }
+    }
+
+    /**
+     * Builds towers at obnoxious places and times.
+     * 
+     * If it is lategame, it will spam tower production across the map.
+     * If the bot has just attacked, there is a chance it will launch a worker to place
+     *  a tower in a random location near one of the player's buildings for additional pressure.
+     */
+    static useTowers(){
+        //If it's lategame and we have too much gold, spam towers across the map for map control. Even if the opponent intercepts
+        //a lot of the towers, the rest of the towers will allow the bot to get a massive amount of map control and restrict the opponent.
+        if((scope.getGold() > 500 + myBuilds.combatUnitProducers.length * 50 || (scope.getGold() > 400 && supplyDiff < 5)) && scope.myPower > 15){
+            let build = new RandBuild({building: "Watchtower", "centerX": myBuilds["CastleAndFortresses"][0].getX(), "centerY": myBuilds["CastleAndFortresses"][0].getY()});
+
+            enemyBuildings.forEach(function(enBuild){
+                build.dontBuild.push([enBuild.getX(), enBuild.getY(), 10]);
+            });
+            
+            build.buildRad = Math.max(scope.getMapWidth(), scope.getMapHeight());
+
+            let loc = build.findSuitableSpot();
+            if(loc != null){
+                build.buildAt(loc);
+            }
         }
     }
 
@@ -1373,15 +1323,83 @@ class Us {
         const subPrioMisc = scope.subMetaPrios["Misc"];
 
         if(scope.subPrioMiscInitalized == undefined && subPrioMisc != undefined && subPrioMisc.singleProduction != undefined){
-            var onlyProduceOneArr = subPrioMisc.singleProduction;
-            for(var i = 0; i < onlyProduceOneArr.length; i++){
-                var name = onlyProduceOneArr[i];
+            let onlyProduceOneArr = subPrioMisc.singleProduction;
+            for(let i = 0; i < onlyProduceOneArr.length; i++){
+                let name = onlyProduceOneArr[i];
+                //scope.chatMsg("We will now only produce one of " + name);
                 scope.onlyProduceOneOfThese.push(name);
                 scope.dontProduceFromThese.add(name);
             }
-        }
-        if(scope.subPrioMiscInitalized == undefined){
             scope.subPrioMiscInitalized = true;
+        }
+        //scope.chatMsg("mage guild priority: " + scope.buildPrio["Mages Guild"]);
+    }
+
+    /**
+     * Executes the build order.
+     */
+    static executeBuildOrder(){
+        //scope.chatMsg(JSON.stringify(scope.buildOrder));
+        /*let prioritized = [];
+        Object.keys(scope.buildPrio).forEach((key) => (scope.buildPrio[key] > 0 ? prioritized.push(key) : null));
+        scope.chatMsg(JSON.stringify(prioritized));*/
+        if(scope.lastNumOfBuildings < myBuilds.allBuilds.length){
+            for(let key in scope.buildPrio){
+                scope.buildPrio[key] = 0;
+            }
+        }
+        for(let key in scope.unitPrio){
+            scope.unitPrio[key] = 0;
+        }
+        if(scope.buildOrder.length > 0){
+            let name = scope.buildOrder[0][0];
+            let id_name = name.toLowerCase().replace(" ", "");
+            //id_name = id_name.replace(" ", "");
+            //scope.chatMsg("name: " + id_name + "'s cost: " + scope.getTypeFieldValue(id_name, "cost") + " " + (typeof scope.getTypeFieldValue(id_name, "cost")));
+            if(gold >= scope.getTypeFieldValue(id_name, "cost")){
+                let suceeded = true;
+
+                if(Object.keys(scope.buildPrio).includes(name)){
+                    //For buildings
+                    if(name === "Castle"){
+                        //Castles don't use buildPrio, so this is needed to trigger their building.
+                        scope.maxWorkersOnBase = workerToCastleRatio - 1;
+                        scope.buildOrder[0][2] == undefined ? scope.buildOrder[0][2] = 1 : scope.buildOrder[0][2]++;
+                    }else if(scope.getTypeFieldValue(id_name, "cost") <= gold){
+                        scope.buildPrio[name] = 1;
+                        scope.buildOrder[0][2] == undefined ? scope.buildOrder[0][2] = 1 : scope.buildOrder[0][2]++;
+                    }
+                }else if(Object.keys(scope.unitPrio).includes(name)){
+                    //For units
+                    let finishedBuilds;
+                    if(name != "Worker"){
+                        finishedBuilds = scope.getBuildings({type: scope.unitProducedAtTypeName[name], player: me, onlyFinshed: true});
+                    }else{
+                        //Workers require a bit of a workaround, since there is no 'CastleAndFortresses' building in LWG.
+                        finishedBuilds = scope.getBuildings({type: "Castle", player: me, onlyFinshed: true}).concat(myBuilds["Fortresses"]);
+                    }
+                    
+                    if(finishedBuilds.length > 0){
+                        let numUnitsTrained = trainUnit(name, Infinity, false);//Tries to train them
+                        scope.buildOrder[0][2] == undefined ? scope.buildOrder[0][2] = numUnitsTrained : scope.buildOrder[0][2] += numUnitsTrained;
+                        
+                        if(scope.buildOrder[0][2] < scope.buildOrder[0][1]){
+                            suceeded = false;
+                        }
+                    }
+                }else{
+                    throw new TypeError("Name " + name + " in the build order is not a valid name. Did you forget to capitalize the first letter? Check to make sure the name is in scope.buildPrio, scope.unitPrio, and/or scope.unitProducedAt.");
+                }
+
+                if(suceeded){
+                    if(scope.buildOrder[0][2] >= scope.buildOrder[0][1]){
+                        scope.buildOrder.splice(0, 1);
+                    }//If there are no more remaining
+                }
+            }
+        }else{
+            scope.usingBuildOrder = false;
+            scope.maxWorkersOnBase = Randomizer.nextInt(7, 9);
         }
     }
     
@@ -1391,8 +1409,8 @@ class Us {
     static reviseBuildPrio(){
         const subPrio = scope.subMetaPrios;
 
-        var prios = [];
-        for(var key in scope.buildPrio){
+        let prios = [];
+        for(let key in scope.buildPrio){
             if(scope.buildPrio[key] > 0){
                 prios.push(key);
             }
@@ -1400,9 +1418,9 @@ class Us {
         //scope.chatMsg(getMyColor() + "'s build prios: " + JSON.stringify(prios));
         
         if(gold >= 100){
-            var checkHouses = true;
-            var numHousesUnderConstruction = 0;
-            for(var i = 0; i < myBuilds.Houses.length; i++){
+            let checkHouses = true;
+            let numHousesUnderConstruction = 0;
+            for(let i = 0; i < myBuilds.Houses.length; i++){
                 if(myBuilds.Houses[i].isUnderConstruction() === true){
                     numHousesUnderConstruction++;
                 }
@@ -1418,10 +1436,10 @@ class Us {
             
             if(checkHouses === true){
                 if(scope.meta === "Barracks"){
-                    if(supplyDiff <= 4){
+                    if(supplyDiff <= 5){
                         scope.buildPrio["House"] = 1;
-                    }else if(supplyDiff <= 6){
-                        scope.buildPrio["House"] = 0.1;
+                    }else if(supplyDiff <= 7){
+                        scope.buildPrio["House"] = 0.2;
                     }else{
                         scope.buildPrio["House"] = 0;
                     }
@@ -1430,7 +1448,7 @@ class Us {
                         scope.buildPrio["House"] = 2;
                     }else if(supplyDiff <= 5){
                         scope.buildPrio["House"] = 1;
-                    }else if(supplyDiff <= 7){
+                    }else if(supplyDiff <= 8){
                         scope.buildPrio["House"] = 0.3;
                     }else{
                         scope.buildPrio["House"] = 0;
@@ -1453,16 +1471,19 @@ class Us {
             scope.buildPrio["House"] = 0;
         }
         
-        var checkCombatUnitProducers = true;
-        var noProductionBuildings = 0;
-        for(var i = 0; i < myBuilds.combatUnitProducers.length; i++){
-            var building = myBuilds.combatUnitProducers[i];
+        let checkCombatUnitProducers = true;
+        let noProductionBuildings = 0;
+        for(let i = 0; i < myBuilds.combatUnitProducers.length; i++){
+            let building = myBuilds.combatUnitProducers[i];
             if(typeof building != "object"){
                 throw new TypeError("building " + JSON.stringify(building) + " is not a valid combat unit producer.")
             }else{
                 const unitName = building.getUnitTypeNameInProductionQueAt(1);
-                if(unitName == null || building.getRemainingBuildTime() == scope.getTypeFieldValue(unitName, "buildTimeInSec")){
-                    noProductionBuildings++;
+                if(unitName == null || building.getRemainingBuildTime() == scope.getTypeFieldValue(unitName.toLowerCase().replace(" ", ""), "buildTimeInSec")){
+                    if(building.getTypeName() != "Advanced Workshop"){
+                        //Advanced workshops are special. They only produce things in spurts, so don't count them.
+                        noProductionBuildings++;
+                    }
                 }
             }
         }//If the current combat unit producers don't have enough
@@ -1477,17 +1498,12 @@ class Us {
         
         if(scope.startUnminedMines.length > 0){
             if(scope.meta === "Barracks"){
-                if(combatUnitProducerToCastleRatio >= 2 || myBuilds.combatUnitProducers.length >= 5){
+                if(combatUnitProducerToCastleRatio >= scope.maxCombatUnitProducerToCastleRatio){
                     checkCombatUnitProducers = false;
                 }
-            }else if(scope.meta === "Beast"){
-                if(combatUnitProducerToCastleRatio >= 4 || myBuilds.combatUnitProducers.length >= 6){
-                    checkCombatUnitProducers = false;
-                }
-            }else if(scope.meta === "Mechanical"){
-                if(combatUnitProducerToCastleRatio >= 2 || myBuilds.combatUnitProducers.length >= 4){
-                    checkCombatUnitProducers = false;
-                }
+            }
+            if(myBuilds.combatUnitProducers > scope.unitProducerCap){
+                checkCombatUnitProducers = false;
             }
         }//Basically the cap of how many combat unit producers the bot can have
         //per castle(combat unit producers = barracks, wolves dens, workshops, 
@@ -1495,7 +1511,7 @@ class Us {
         
         if(checkCombatUnitProducers === true){
             if(scope.meta === "Barracks"){
-                var barracksPrio = 0;
+                let barracksPrio = 0;
                 if(subPrio["Buildings"].includes("Barracks") === true){
                     //Barracks are unique in that they require a mage's guild
                     //in order to produce mages. This makes sure that a
@@ -1511,28 +1527,20 @@ class Us {
                 }
                 scope.buildPrio["Barracks"] = barracksPrio;
 
-                var guildPrio = 0;
-                if(subPrio["Buildings"].includes("Mages Guild") === true){
-                    if(myBuilds["Barracks"].length > 1 && gold > 100){
-                        guildPrio = 1;
-                    }
-                }
-                scope.buildPrio["Mages Guild"] = guildPrio;
-
-                var churchPrio = 0;
+                let churchPrio = 0;
                 if(subPrio["Buildings"].includes("Church") === true){
-                    if(myBuilds.Houses.length > 0 && gold > 150){
+                    if(myBuilds.Houses.length > 0 && gold > 200){
                         if(supplyDiff > 6){
-                            churchPrio = 1;
+                            churchPrio = 0.8;
                         }else if(supplyDiff > 3){
-                            churchPrio = 0.5;
+                            churchPrio = 0.4;
                         }
                     }
                 }
                 scope.buildPrio["Church"] = churchPrio;
             }else if(scope.meta === "Beast"){
                 //Wolves dens
-                var wolvesDenPrio = 0;
+                let wolvesDenPrio = 0;
                 //if(subMeta === "WolfSnakeSpam" || subMeta === "WolfSnakeAndWerewolf" || subMeta === "WolfSnakeAndDragon" || subMeta === "WolfSpam"){
                 if(subPrio["Buildings"].includes("Wolves Den") === true && myBuilds.Houses.length > 0 && gold > 100){
                     if(scope.getCurrentSupply() < scope.getMaxSupply() - 6){
@@ -1544,7 +1552,7 @@ class Us {
                 scope.buildPrio["Wolves Den"] = wolvesDenPrio;
                 
                 //Snake charmer
-                var charmerPrio = 0;
+                let charmerPrio = 0;
                 //if(subMeta === "WolfSnakeSpam" || subMeta === "WolfSnakeAndWerewolf" || subMeta === "WolfSnakeAndDragon"){
                 if(subPrio["Buildings"].includes("Snake Charmer") === true && subPrio["Buildings"].includes("Snake Charmer") === true){
                     if(myBuilds["Snake Charmers"].length <= 0 && myBuilds["Wolves Dens"].length > 1 && gold > 100){
@@ -1557,7 +1565,7 @@ class Us {
                 
                 
                 //Dragon's lair
-                var lairPrio = 0;
+                let lairPrio = 0;
                 //if(subMeta === "WolfSnakeAndDragon" || subMeta === "DragonSpamRush"){
                 if(subPrio["Buildings"].includes("Dragons Lair") === true){
                     if(myBuilds["Fortresses"].length > 0 && gold >= 125){
@@ -1572,19 +1580,23 @@ class Us {
                 }
                 scope.buildPrio["Dragons Lair"] = lairPrio;
             }else if(scope.meta === "Mechanical"){
-                var workshopPrio = 0;
+                let workshopPrio = 0;
                 if(subPrio["Buildings"].includes("Workshop") === true){
-                    if(myBuilds.Houses.length > 0 && gold > 125){
+                    if(myBuilds["Houses"].length > 0 && gold > 125){
                         if(supplyDiff > 6){
                             workshopPrio = 1;
                         }else if(supplyDiff > 3){
                             workshopPrio = 0.5;
                         }
+
+                        if(myBuilds["CastleAndFortresses"].length == 1 && myBuilds["Workshops"].length == 1 && scope.startUnminedMines.length > 0){
+                            workshopPrio = 0;
+                        }
                     }
                 }
                 scope.buildPrio["Workshop"] = workshopPrio;
 
-                var millPrio = 0;
+                let millPrio = 0;
                 if(subPrio["Buildings"].includes("Mill") === true && myBuilds["Workshops"].length > 0){
                     if(myBuilds.Houses.length > 0 && gold > 140){
                         if(supplyDiff > 5){
@@ -1597,57 +1609,76 @@ class Us {
                 scope.buildPrio["Mill"] = millPrio;
             }
             
+            //Workshops
             if(subPrio["Buildings"].includes("Workshop") === true){
                 scope.buildPrio["Workshop"] = 1;
             }else{
                 scope.buildPrio["Workshop"] = 0;
             }
             
-            if(supplyDiff > 4 && subPrio["Buildings"].includes("Advanced Workshop") === true){
+            //Advanced workshops
+            if(subPrio["Buildings"].includes("Advanced Workshop") === true && myBuilds["Advanced Workshops"].length < 2 && myBuilds["combatUnitProducers"].length > 1){
                 scope.buildPrio["Advanced Workshop"] = 1;
             }else{
                 scope.buildPrio["Advanced Workshop"] = 0;
             }
 
-            if(myBuilds["Watchtowers"].length < myBuilds["CastleAndFortresses"].length && gold > 130 && myBuilds["CastleAndFortresses"].length > 1){
+            if(myBuilds["Watchtowers"].length < myBuilds["CastleAndFortresses"].length && gold > 130 && (myBuilds["CastleAndFortresses"].length >= 2 || scope.significantAirThreat == true) && scope.myPower > 6){
                 scope.buildPrio["Watchtower"] = 1;
             }else{
-                scope.buildPrio["Watchtower"] = 0
+                scope.buildPrio["Watchtower"] = 0;
             }
             
-            scope.onlyProduceOneOfThese.forEach(function(producedAt){
-                if(producedAt == undefined){
+            scope.onlyProduceOneOfThese.forEach(function(build){
+                if(build == undefined){
                     throw new TypeError("scope.onlyProduceOneOfThese: Invalid production building: " + producedAt)
-                }else if(scope.getBuildings({type: producedAt, player: me}).length > 0){
-                    scope.buildPrio[producedAt] = 0;
+                }else if(scope.getBuildings({type: build, player: me}).length > 0){
+                    scope.buildPrio[build] = 0;
                 }else{
-                    scope.buildPrio[producedAt] = 1;
+                    scope.buildPrio[build] = 1;
                 }
             });
-            
-            //Upgrades
-            //---------------------------------------------------------------
-
-            const subPrioUpg = scope.subMetaPrios["Upgrades"];
-            //Forge building
-            if(subPrioUpg.includes("Forge") === true){
-                if(scope.myPower > 10 && myBuilds["Forges"].length <= 0 && (myBuilds["CastleAndFortresses"].length > 2 || (scope.startUnminedMines.length <= 0 && myBuilds["CastleAndFortresses"].length > 0))){
-                    scope.buildPrio["Forge"] = 1;
-                }
-            }
-
-            if(subPrioUpg.includes("Animal Testing Lab") === true){
-                if(scope.myPower > 10 && myBuilds["Animal Testing Labs"].length <= 0 && (myBuilds["CastleAndFortresses"].length > 2 || (scope.startUnminedMines.length <= 0 && myBuilds["CastleAndFortresses"].length > 0))){
-                    scope.buildPrio["Animal Testing Lab"] = 1;
-                }
-            }
         }else{
-            for(var key in scope.buildPrio){
+            for(let key in scope.buildPrio){
                 scope.buildPrio[key] = 0;
             }//Nothing is prioritized, so set everything to 0
         }
+
+        //Mages guild
+        let guildPrio = 0;
+        if(subPrio["Buildings"].includes("Mages Guild") === true && myBuilds["Mages Guilds"].length < 1){
+            if(myBuilds["Barracks"].length > 1 && gold > 100){
+                guildPrio = 1;
+            }
+        }
+        scope.buildPrio["Mages Guild"] = guildPrio;
+
+        const subPrioUpg = scope.subMetaPrios["Upgrades"];
+        //Forge building
+        if(subPrioUpg.includes("Forge") === true){
+            if(scope.myPower > 13 && myBuilds["Forges"].length <= 1 && (myBuilds["CastleAndFortresses"].length > 2 || (scope.startUnminedMines.length <= 0 && myBuilds["CastleAndFortresses"].length > 0))){
+                scope.buildPrio["Forge"] = 1;
+            }
+        }
+
+        //Animal testing labs
+        if(subPrioUpg.includes("Animal Testing Lab") === true){
+            if(scope.myPower > 13 && myBuilds["Animal Testing Labs"].length <= 1 && (myBuilds["CastleAndFortresses"].length > 2 || (scope.startUnminedMines.length <= 0 && myBuilds["CastleAndFortresses"].length > 0))){
+                scope.buildPrio["Animal Testing Lab"] = 1;
+            }
+        }
+
+        //Priority build
+        if(scope.priorityBuild != null){
+            for(let key in scope.buildPrio){
+                scope.buildPrio[key] = 0;
+            }
+            if(gold >= scope.getTypeFieldValue(scope.priorityBuild.toLowerCase().replace(" ", ""), "cost")){
+                scope.buildPrio[scope.priorityBuild] = 1;
+                scope.priorityBuild = null;
+            }
+        }
     }
-    
     
     /**
     * If the bot should attack. Checks if the bot has more than twice the
@@ -1656,16 +1687,24 @@ class Us {
      * not DragonSpamRush, the minimum amount of units is the number of combat
      * unit producers times 3.
      * 
+     * Also checks if the bot has enough power to eliminnate the maximum force encountered,
+     * or if it has more than 10 power (enough power for at least a runby).
+     * 
      * @returns {boolean} - if the bot has met the attack criteria.
      */
     static shouldAttack(){
-        var threshold = 2;
+        if(fightingUnits.length <= 0 || Math.floor(scope.maxEnPowerEncountered, 10) > scope.myPower){
+            return false;
+        }
+        let threshold = 2;
         if(scope.attackThreshold != undefined){
             threshold = scope.attackThreshold;
         }
 
-        //If we have too much population or meet the attack threshold
-        if((fightingUnits.length >= myBuilds.combatUnitProducers.length * threshold && scope.underAttack === false) || supplyDiff <= 3){
+        //If we have too much population or meet the attack threshold or proxied
+        if((fightingUnits.length >= myBuilds.combatUnitProducers.length * threshold && scope.underAttack === false) || 
+        supplyDiff <= 3 || 
+        (fightingUnits.length > 1 && scope.proxied === true && time < 300)){
             return true;
         }else{
             return false;
@@ -1673,23 +1712,11 @@ class Us {
     }
     
     /**
-     * Your normal mom-and-pop attack. Attacks with idle fightingUnits only,
-     * because otherwise the game lags far too much.
+     * Do I really need to comment on this?
      */
     static attack(){
         scope.justAttacked = true;
-        var location = Us.getRandAttackLoc();
-        scope.order("AMove", idleFightingUnits, location);
-    }
-    
-    /**
-     * Abnormal attack. Attacks with all available fightingUnits. Used during
-     * kiting.
-     */
-    static allAttack(){
-        var location = Us.getRandAttackLoc();
-        
-        scope.order("AMove", fightingUnits, location);
+        Army.planAndAttack();
     }
     
     /**
@@ -1701,19 +1728,25 @@ class Us {
      * @returns {object} - The x and y coordinates of the random attack location.
      */
     static getRandAttackLoc(){
-        var location;
+        let location;
         
         if(enemyBuildings.length <= 0){
-            var player = getRandomEnemyNr();
+            let player = getRandomEnemyNr();
             location = scope.getStartLocationForPlayerNumber(player);
+            //If we don't have the location of their buildings, go for their main base
         }else{
-            var randBuilding = enemyBuildings[Randomizer.nextInt(0, enemyBuildings.length - 1)];
+            //If we do have the location of their buildings, pick one of those.
+            let randBuilding = enemyBuildings[Randomizer.nextInt(0, enemyBuildings.length - 1)];
             location = {x: randBuilding.getX(), y: randBuilding.getY()}
         }
 
         if(location == undefined){
-            var mines = getMinesWithGold();
-            var mine = mines[Randomizer.nextInt(0, mines.length - 1)];
+            //Sometimes, the map is weird and getStartLocationForPlayerNumber() returns undefined. 
+            //If that happens, the attack will go to a random mine with less than full gold (someone's mining there).
+            let mines = getMinesWithGold();
+            let possibles = [];
+            mines.forEach(mine => mine.getValue('gold') < 5000 ? possibles.push(mine) : null);
+            let mine = possibles[Randomizer.nextInt(0, mines.length - 1)];
             location = {x: mine.getX(), y: mine.getY()};
         }
         
@@ -1724,17 +1757,25 @@ class Us {
      * Dispatches a scout to scout a random gold mine.
      */
     static scout(){
-        if(idleFightingUnits.length > 0){
-            var mines = getMinesWithGold();
+        if(idleFightingUnits.length > 0 && scope.myPower > 5){
+            let mines = getMinesWithGold();
             if(mines.length <= 0){
                 return;
             }
-            var mine = mines[Randomizer.nextInt(0, mines.length - 1)];
-            
-            var location = {"x": mine.getX(), "y": mine.getY()};
-            var unit = idleFightingUnits[Randomizer.nextInt(0, idleFightingUnits.length - 1)];
-            if(unit != undefined){
-                scope.order("AMove", [unit], location);
+
+            let stop = Randomizer.nextInt(2, 3);
+            let unit = idleFightingUnits[Randomizer.nextInt(0, idleFightingUnits.length - 1)];
+            for(let i = 0; i < stop; i++){
+                let mine = mines[Randomizer.nextInt(0, mines.length - 1)];
+                
+                let location = {"x": mine.getX(), "y": mine.getY()};
+                if(unit != undefined){
+                    if(i === 0){
+                        scope.order("AMove", [unit], location);
+                    }else{
+                        scope.order("AMove", [unit], location, true);
+                    }
+                }
             }
         }
     }
@@ -1743,17 +1784,17 @@ class Us {
      * force of units to intercept.
      */
     static defend(){
-        var underAttack = false;
-        var attackingFightingUnits = [];
-        var possibleChecks = myBuilds["allBuilds"].concat(alliedBuilds);
+        let underAttack = false;
+        let attackingFightingUnits = [];
+        let possibleChecks = myBuilds["allBuilds"].concat(alliedBuilds);
         
         //enemyFightingUnits
         
-        for(var i = 0; i < enemyUnits.length; i++){
-            var enemy = enemyUnits[i];
-            for(var ii = 0; ii < possibleChecks.length / 3; ii++){
-                var build = possibleChecks[Randomizer.nextInt(0, possibleChecks.length - 1)];
-                if(distanceFormula(build.getX() + 2, build.getY() + 2, enemy.getX(), enemy.getY()) <= 10){
+        for(let i = 0; i < enemyUnits.length; i++){
+            let enemy = enemyUnits[i];
+            for(let ii = 0; ii < possibleChecks.length; ii++){
+                let build = possibleChecks[ii];
+                if(distanceFormula(build.getX() + 2, build.getY() + 2, enemy.getX(), enemy.getY()) < 11){
                     underAttack = true;
                     break;
                 }
@@ -1767,36 +1808,77 @@ class Us {
             if(attackingFightingUnits == undefined){
                 scope.chatMsg("attackingFightingUnits is undefined!");
             }else{
-                var center = scope.getCenterOfUnits(attackingFightingUnits);
-                var responseUnits = [];
-                var enPower = 0;
-                var myPower = 0;
+                let selUnit = attackingFightingUnits[Randomizer.nextInt(0, attackingFightingUnits.length - 1)];
+                let center;
+                if(selUnit == undefined){
+                    center = scope.getCenterOfUnits(attackingFightingUnits);
+                }else{
+                    center = {x: selUnit.getX(), y: selUnit.getY()};//To make sure it's targeting something.
+                }
                 
-                for(var i = 0; i < attackingFightingUnits.length; i++){
+                let enPower = 0;
+                
+                for(let i = 0; i < attackingFightingUnits.length; i++){
                     const pow = scope.getPowerOf(attackingFightingUnits[i]);
                     if(pow != undefined){
                         enPower += pow;
                     }
                 }
                 
+                if(scope.garrison == undefined){
+                    scope.chatMsg("Garrison is undefined");
+                    return;
+                }
                 
-                for(var i = 0; i < fightingUnits.length; i++){
-                    var unit = fightingUnits[i];
-                    var power = scope.getPowerOf(unit);
+                const garrison = Object.values(scope.garrison.unitsByID);
+                let gl = garrison.length;
+                let responsePower = 0;
+                let enoughPower = false;
+                let responseUnits = [];
+                for(let i = 0; i < gl; i++){
+                    let unit = garrison[i];
+                    let power = scope.getPowerOf(unit);
                     if(power != undefined){
-                        myPower += power;
-                        responseUnits.push(fightingUnits[i]);
+                        responsePower += power;
+                        responseUnits.push(unit);
+                        delete scope.garrison.unitsByID[unit.getUnitID()];
                     }
-                    if(myPower > enPower){
+                    if(responsePower > enPower){
+                        enoughPower = true;
                         break;
                     }
-                }//If a matching force of units have been dispatched, break.
-                //scope.chatMsg(getMyColor() + ": myPower: " + myPower + ", enemyPower: " + enPower);
-                scope.order("AMove", responseUnits, center);
+                }//Draws units from the garrison first
 
-                //If we don't have enough power to overwhelm, worker rush.
-                if(enPower - scope.myPower >= scope.myPower * 2){
-                    Us.workerRush(center, 25, enPower - scope.myPower);
+                if(enoughPower == false){
+                    for(let id in scope.allArmiesByID){
+                        let army = scope.allArmiesByID[id];
+                        let armyUnits = Object.values(army.unitsByID);
+                        for(let i = 0; i < armyUnits.length; i++){
+                            let unit = armyUnits[i];
+                            let power = scope.getPowerOf(unit);
+                            if(power != undefined){
+                                responsePower += power;
+                                responseUnits.push(unit);
+                                delete army.unitsByID[unit.getUnitID()];
+                            }
+                            if(responsePower > enPower){
+                                enoughPower = true;
+                                break;
+                            }
+                        }
+                    }
+                }//Draw units from other armies next
+                
+                scope.defenseArmy.addUnits(responseUnits);
+                scope.defenseArmy.attack(scope.getCenterOfUnits(attackingFightingUnits));
+                
+                //If we are totally outmatched, throw in the towel and quit.
+                if(((scope.myPower + 0.75) * 2.5 < enPower && myBuilds["CastleAndFortresses"].length <= 1) || myBuilds["CastleAndFortresses"].length == 0){
+                    let possibles = ["GG", "GG", "GG", "GG", "GG", "GG", "Drat!", ":(", "Nutfudder", "gg", "Frick", "Frack", "Bye", "Good game",
+                    "Nice one"];
+                    scope.chatMsg(possibles[Randomizer.nextInt(0, possibles.length - 1)]);
+                    scope.leaveGame();
+                    scope.shouldUpdate = false;
                 }
             }
         }else{
@@ -1812,8 +1894,8 @@ class Us {
      * TO UPDATE THIS!!!
      */
     static reviseUnitPrio(){
-        var prios = [];
-        for(var key in scope.unitPrio){
+        let prios = [];
+        for(let key in scope.unitPrio){
             if(scope.unitPrio[key] > 0){
                 prios.push(key);
             }
@@ -1821,7 +1903,7 @@ class Us {
         //scope.chatMsg(getMyColor() + "'s unit prios: " + JSON.stringify(prios));
 
         if(supplyDiff <= 3){
-            for(var key in scope.unitPrio){
+            for(let key in scope.unitPrio){
                 scope.unitPrio[key] = 0;
             }
             if(myBuilds["CastleAndFortresses"].length === 1 && allWorkers.length <= 8){
@@ -1855,7 +1937,11 @@ class Us {
 
                 //Archer
                 if(subPrio["Units"].includes("Archer") === true){
-                    scope.unitPrio["Archer"] = 0.7;
+                    if(scope.significantAirThreat === false){
+                        scope.unitPrio["Archer"] = 0.7;
+                    }else{
+                        scope.unitPrio["Archer"] = 1.25;
+                    }
                 }else{
                     scope.unitPrio["Archer"] = 0;
                 }
@@ -1871,21 +1957,7 @@ class Us {
 
                 //Raiders
                 if(subPrio["Units"].includes("Raider") === true){
-                    //Because raiders are early-game, if there are
-                    //other units, let them be produced instead.
-                    var doTrainRaiders = true;
-                    for(var i = 0; i < fightingUnits.length; i++){
-                        if(fightingUnits[i].getTypeName() != "Raider"){
-                            doTrainRaiders = false;
-                            break;
-                        }
-                    }
-
-                    if(doTrainRaiders === true){
-                        scope.unitPrio["Raider"] = 1;
-                    }else{
-                        scope.unitPrio["Raider"] = 0;
-                    }
+                    scope.unitPrio["Raider"] = 0.15;
                 }
             }else{
                 scope.unitPrio["Soldier"] = 0;
@@ -1908,7 +1980,11 @@ class Us {
                 scope.unitPrio["Wolf"] = 1;
                 
                 if(subPrio["Units"].includes("Snake") === true && myBuilds["Snake Charmers"].length > 0 && myUnits["Wolf"] != undefined && myUnits["Wolf"].length >= myBuilds["Wolves Dens"].length){
-                    scope.unitPrio["Snake"] = 0.5;
+                    if(scope.significantAirThreat === false){
+                        scope.unitPrio["Snake"] = 0.5;
+                    }else{
+                        scope.unitPrio["Snake"] = 1.25;
+                    }
                 }else{
                     scope.unitPrio["Snake"] = 0;
                 }
@@ -1954,8 +2030,12 @@ class Us {
         }
 
         //Ballistae
-        if(subPrio["Units"].includes("Ballista") === true && myBuilds["Advanced Workshops"].length > 0){
-            scope.unitPrio["Ballista"] = 1;
+        if(subPrio["Units"].includes("Ballista") === true && myBuilds["Advanced Workshops"].length > 0 && (myUnits["Ballista"] == undefined || myUnits["Ballista"].length <= 4)){
+            if(scope.significantAirThreat === false){
+                scope.unitPrio["Ballista"] = 1;
+            }else{
+                scope.unitPrio["Ballista"] = 2;
+            }                                               
         }else{
             scope.unitPrio["Ballista"] = 0;
         }
@@ -1965,8 +2045,13 @@ class Us {
             scope.unitPrio["Bird"] = 0.5;
         }
         
+        //Airships
+        if(subPrio["Units"].includes("Airship") === true && myBuilds["Advanced Workshops"].length > 0 && scope.myPower > 8 && (myUnits["Airship"] == undefined || myUnits["Airship"].length < 3)){
+            scope.unitPrio["Airship"] = 1;
+        }
+        
         scope.dontProduceFromThese.forEach(function(value){
-            for(var key in scope.unitProducedAt){
+            for(let key in scope.unitProducedAt){
                 if(scope.unitProducedAt[key] === value){
                     scope.unitPrio[key] = 0;
                 }
@@ -1977,59 +2062,77 @@ class Us {
     /**
      * Runs through a random list of buildings, finds the damaged ones, and
      * dispatches a worker to repair the building provided that there are no
-     * enemy units around the building.
+     * enemy units around the building and we haven't exceeded the maximum number
+     * of building repairers.
      */
     static repair(){
-        for(var i = 0; i < myBuilds.allBuilds.length / 2; i++){
-            var building = myBuilds.allBuilds[Randomizer.nextInt(0, myBuilds.allBuilds.length - 1)];
-            var isUnderConstruction = building.isUnderConstruction();
-            
-            //basiscally if the building needs repairing.
-            if(building.getValue("hp") < building.getFieldValue("hp") && isUnderConstruction === false){
-                var doRepair = true;
-                
-                for(var ii = 0; ii < repairingWorkers.length; ii++){
-                    var worker = repairingWorkers[ii];
-                    
-                    if(distanceFormula(worker.getX(), worker.getY(), building.getX(), building.getY()) <= 5){
-                        doRepair = false;
-                        ii = repairingWorkers.length;
-                    }
-                }//Checks to make sure there are no units already repairing the building,
-                
-                if(doRepair === true){
-                    //Will repair watchtowers no matter what, but other buildings will check to make sure 
-                    //there are no enemies around
-                    if((isEnemyAroundBuilding(building) === false || building.getTypeName() === "Watchtower") && miningWorkers.length > 0){
-                        var randWorker = miningWorkers[Randomizer.nextInt(0, miningWorkers.length - 1)];
-                        scope.order("Repair", [randWorker], {unit: building});
-                    }
+        let numMechRepairers = 0;
+        if(scope.meta == "Mechanical"){
+            scope.mechRepairSquad.forEach(function(worker){
+                if(worker.getCurrentOrderName() == "Repair"){
+                    numMechRepairers++;
                 }
-            }else if(isUnderConstruction === true){
-                var workers = getNotMiningWorkers();
-                var size = scope.buildingSizes[building.getTypeName()];
-                var hasWorker = false;
-                var enemyAround = isEnemyAroundBuilding(building);
+            });//Not a perfet system
+        }  
+
+        let numConstructions = 0;
+        myBuilds.allBuilds.forEach(function(build){
+            if(build.isUnderConstruction()){
+                numConstructions++;
+            }
+        });
+        if(repairingWorkers.length - numMechRepairers - numConstructions < scope.maxBuildingRepairers){
+            for(let i = 0; i < myBuilds.allBuilds.length / 2; i++){
+                let building = myBuilds.allBuilds[Randomizer.nextInt(0, myBuilds.allBuilds.length - 1)];
+                let isUnderConstruction = building.isUnderConstruction();
                 
-                if(enemyAround === false || building.getTypeName() === "Watchtower"){
-                    for(var ii = 0; ii < workers.length; ii++){
-                        var worker = workers[ii];
+                //basiscally if the building needs repairing.
+                if(building.getValue("hp") < building.getFieldValue("hp") && isUnderConstruction === false){
+                    let doRepair = true;
+                    
+                    for(let ii = 0; ii < repairingWorkers.length; ii++){
+                        let worker = repairingWorkers[ii];
                         
-                        if(Math.floor(distanceFormula(worker.getX(), worker.getY(), building.getX() + size[0] / 2, building.getY() + size[1] / 2)) <= size[0] + 2){
-                            hasWorker = true;
-                            ii = workers.length;
+                        if(distanceFormula(worker.getX(), worker.getY(), building.getX(), building.getY()) <= 5){
+                            doRepair = false;
+                            ii = repairingWorkers.length;
                         }
-                    }
-                    if(hasWorker === false){
-                        if(miningWorkers.length > 0){
-                            var randWorker = miningWorkers[Randomizer.nextInt(0, miningWorkers.length - 1)];
+                    }//Checks to make sure there are no units already repairing the building,
+                    
+                    if(doRepair === true){
+                        //Will repair watchtowers no matter what, but other buildings will check to make sure 
+                        //there are no enemies around
+                        if((isEnemyAroundBuilding(building) === false || building.getTypeName() === "Watchtower") && miningWorkers.length > 0){
+                            let randWorker = miningWorkers[Randomizer.nextInt(0, miningWorkers.length - 1)];
                             scope.order("Repair", [randWorker], {unit: building});
                         }
                     }
-                }
-            }//If the building is under construction, look for non-mining 
-            //workers near the building. If there are no non-mining workers
-            //near the building, order a worker to repair
+                }else if(isUnderConstruction === true){
+                    let workers = getNotMiningWorkers();
+                    let size = scope.buildingSizes[building.getTypeName()];
+                    let hasWorker = false;
+                    let enemyAround = isEnemyAroundBuilding(building);
+                    
+                    if(enemyAround === false || building.getTypeName() === "Watchtower"){
+                        for(let ii = 0; ii < workers.length; ii++){
+                            let worker = workers[ii];
+                            
+                            if(Math.floor(distanceFormula(worker.getX(), worker.getY(), building.getX() + size[0] / 2, building.getY() + size[1] / 2)) <= size[0] + 2){
+                                hasWorker = true;
+                                ii = workers.length;
+                            }
+                        }
+                        if(hasWorker === false){
+                            if(miningWorkers.length > 0){
+                                let randWorker = miningWorkers[Randomizer.nextInt(0, miningWorkers.length - 1)];
+                                scope.order("Repair", [randWorker], {unit: building});
+                            }
+                        }
+                    }
+                }//If the building is under construction, look for non-mining 
+                //workers near the building. If there are no non-mining workers
+                //near the building, order a worker to repair
+            }
         }
     }
     
@@ -2040,11 +2143,12 @@ class Us {
     static reviseUpgradePrio(){
         const subPrio = scope.subMetaPrios;
         const subPrioUpg = subPrio["Upgrades"];
+        
         //Upgrade werewolves den
         if(subPrioUpg.includes("Werewolf Den") === true){
             if(myBuilds["CastleAndFortresses"].length >= 2 && allWorkers.length > 14 && scope.underAttack === false && myBuilds["Wolves Dens"].length > 3 && myBuilds["Werewolves Dens"].length < 2){
                 if(gold > 225){
-                    var den = myBuilds["Wolves Dens"][Randomizer.nextInt(0, myBuilds["Wolves Dens"].length - 1)]
+                    let den = myBuilds["Wolves Dens"][Randomizer.nextInt(0, myBuilds["Wolves Dens"].length - 1)]
                     scope.order("Upgrade To Werewolves Den", [den]);
                 }
             }
@@ -2054,7 +2158,7 @@ class Us {
         if(subPrioUpg.includes("Fortress") === true){
             if(scope.underAttack === false && myBuilds["Fortresses"].length <= 0){
                 if(gold >= 100){
-                    var castle = myBuilds["Castles"][0];
+                    let castle = myBuilds["Castles"][0];
                     
                     if(castle != undefined){
                         scope.order("Upgrade To Fortress", [castle]);
@@ -2063,11 +2167,16 @@ class Us {
             }
         }
         
+        //If we're going easy on them, there's no need for upgrades.
+        if(DIFFICULTY < 1){
+            return;
+        }
+        
         //Fireball research
         if(subPrioUpg.includes("Fireball") === true){
             if(scope.underAttack === false && (myBuilds["CastleAndFortresses"].length > 1 || scope.startUnminedMines.length <= 0) && myBuilds["Mages Guilds"].length > 0){
                 if(gold >= 100){
-                    var guild = myBuilds["Mages Guilds"][0];
+                    let guild = myBuilds["Mages Guilds"][0];
                     
                     if(guild != undefined){
                         scope.fireballRearched = true;
@@ -2081,7 +2190,7 @@ class Us {
         if(subPrioUpg.includes("Invisibility") === true){
             if(scope.underAttack === false && (myBuilds["CastleAndFortresses"].length > 1 || scope.startUnminedMines.length <= 0) && myBuilds["Churches"].length > 0){
                 if(gold >= 100){
-                    var church = myBuilds["Churches"][0];
+                    let church = myBuilds["Churches"][0];
                     
                     if(church != undefined){
                         scope.order("Research Invisibility", [church]);
@@ -2089,12 +2198,17 @@ class Us {
                 }
             }
         }
+        
+        //Ballista research
+        if(myUnits["Ballista"] != undefined && gold >= 100){
+            scope.order("Ballista Black Powder", [myBuilds["Advanced Workshops"][0]]);
+        }
 
         //Bird Detection research
         if(subPrioUpg.includes("Bird Detection") === true){
             if((myBuilds["CastleAndFortresses"].length > 1 || (scope.startUnminedMines.length <= 0 && myBuilds["CastleAndFortresses"].length > 0))){
                 if(gold >= 100){
-                    var preferredCastle = null;
+                    let preferredCastle = null;
                     myBuilds["CastleAndFortresses"].forEach(function(castle){
                         if(castle.getUnitTypeNameInProductionQueAt(1) == null){
                             preferredCastle = castle;
@@ -2162,18 +2276,18 @@ class Us {
             
             //castle's workers are supposed to be donated
             
-            var castleWorkers = [];//Formatted like so: [[], [], []]. The inner sets of brackets are arrays of workers that are
+            let castleWorkers = [];//Formatted like so: [[], [], []]. The inner sets of brackets are arrays of workers that are
             //assigned to that castle. The index of the inner arrays is also the index of the castle/fortress in myBuilds.
-            for(var i = 0; i < myBuilds["CastleAndFortresses"].length; i++){
+            for(let i = 0; i < myBuilds["CastleAndFortresses"].length; i++){
                 castleWorkers.push([]);
             }
 
-            var castleDonatePercent =  (allWorkers.length / castleWorkers.length) / allWorkers.length;
+            let castleDonatePercent =  (allWorkers.length / castleWorkers.length) / allWorkers.length;
             
-            for(var i = 0; i < miningWorkers.length; i++){
-                var worker = miningWorkers[i];
-                for(var ii = 0; ii < myBuilds["CastleAndFortresses"].length; ii++){
-                    var curCastle = myBuilds["CastleAndFortresses"][ii];
+            for(let i = 0; i < miningWorkers.length; i++){
+                let worker = miningWorkers[i];
+                for(let ii = 0; ii < myBuilds["CastleAndFortresses"].length; ii++){
+                    let curCastle = myBuilds["CastleAndFortresses"][ii];
                     if(distanceFormula(curCastle.getX() + 2, curCastle.getY() + 2, worker.getX(), worker.getY()) <= 10){
                         castleWorkers[ii].push(worker);
                         ii = myBuilds["CastleAndFortresses"].length;
@@ -2181,7 +2295,7 @@ class Us {
                 }
             }
             
-            var moveThese = [];//workers that will be reassigned
+            let moveThese = [];//workers that will be reassigned
             
             
             castleWorkers.sort(function(a, b){
@@ -2189,9 +2303,9 @@ class Us {
             });//Sorts the castles with the largest population from longest to shortest so
             //that the largest worker lines are drawn from first.
 
-            var workersReassigned = 0;
-            for(var i = 0; i < castleWorkers.length; i++){
-                for(var ii = 0; ii < castleWorkers[i].length; ii++){
+            let workersReassigned = 0;
+            for(let i = 0; i < castleWorkers.length; i++){
+                for(let ii = 0; ii < castleWorkers[i].length; ii++){
                     if(ii > Math.floor(castleWorkers[i].length * castleDonatePercent)){
                         ii = castleWorkers[i].length;
                     }else{
@@ -2206,8 +2320,8 @@ class Us {
             }//Assigns workers
             
             /*
-            for(var i = 0; i < castleWorkers.length; i++){
-                for(var ii = 0; ii < castleWorkers[i].length; ii++){
+            for(let i = 0; i < castleWorkers.length; i++){
+                for(let ii = 0; ii < castleWorkers[i].length; ii++){
                     if(ii >= castleDonate){
                         ii = castleWorkers[i].length;
                     }else{
@@ -2220,10 +2334,10 @@ class Us {
                 }
             }//Assigns workers*/
             
-            var newCastle = myBuilds["CastleAndFortresses"][myBuilds["CastleAndFortresses"].length - 1];
+            let newCastle = myBuilds["CastleAndFortresses"][myBuilds["CastleAndFortresses"].length - 1];
             scope.order("Moveto", moveThese, {unit: newCastle});
 
-            //var message = getMyColor() + ": Workers reassigned: " + workersReassigned + ", castleDonate percent: " + castleDonatePercent + "castleWorkers.length: " + castleWorkers.length + ", castleWorkers[0].length: " + castleWorkers[0].length + "First castle worker donation: " + Math.round(castleWorkers[0].length * castleDonatePercent);
+            //let message = getMyColor() + ": Workers reassigned: " + workersReassigned + ", castleDonate percent: " + castleDonatePercent + "castleWorkers.length: " + castleWorkers.length + ", castleWorkers[0].length: " + castleWorkers[0].length + "First castle worker donation: " + Math.round(castleWorkers[0].length * castleDonatePercent);
             //scope.chatMsg(JSON.stringify(message));
         }
     }
@@ -2233,9 +2347,9 @@ class Us {
      */
     static workerScout(){
         if(scope.workerScout == undefined && miningWorkers.length > 0){
-            var randWorker = miningWorkers[0];
+            let randWorker = miningWorkers[0];
             scope.workerScout = randWorker;
-            var startLoc = scope.getStartLocationForPlayerNumber(getRandomEnemyNr());
+            let startLoc = scope.getStartLocationForPlayerNumber(getRandomEnemyNr());
             
             scope.order("AMove", [randWorker], startLoc);
         }else if(miningWorkers.length > 0 && scope.workerScout.getCurrentHP() <= 0){
@@ -2249,17 +2363,17 @@ class Us {
     
     static preventCheese(){
         if(scope.underAttack === true && fightingUnits.length <= 0 && miningWorkers.length >= 2 && myBuilds["CastleAndFortresses"][0] != undefined){
-            var enemyWorkers = scope.getUnits({type: "Worker", enemyOf: me});
-            for(var i = 0; i < enemyWorkers.length; i++){
-                var enemyWorker = enemyWorkers[i];
-                var isNew = true;
-                for(var ii = 0; ii < scope.enemyWorkerScouts.length; ii++){
+            let enemyWorkers = scope.getUnits({type: "Worker", enemyOf: me});
+            for(let i = 0; i < enemyWorkers.length; i++){
+                let enemyWorker = enemyWorkers[i];
+                let isNew = true;
+                for(let ii = 0; ii < scope.enemyWorkerScouts.length; ii++){
                     if(enemyWorker.equals(scope.enemyWorkerScouts[ii]) === true){
                         isNew = false;
                         ii = scope.enemyWorkerScouts.length;
                     }
                 }
-                if(isNew === true && enemyWorker != undefined && distanceFormula(enemyWorker.getX(), enemyWorker.getY(), myBuilds["CastleAndFortresses"][0].getX(), myBuilds["CastleAndFortresses"][0].getY()) < 20){
+                if(isNew === true && enemyWorker != undefined && distanceFormula(enemyWorker.getX(), enemyWorker.getY(), myBuilds["CastleAndFortresses"][0].getX(), myBuilds["CastleAndFortresses"][0].getY()) < 25){
                     scope.enemyWorkerScouts.push(enemyWorker);
                     scope.order("AMove", [miningWorkers[0], miningWorkers[1]], {x: enemyWorker.getX(), y: enemyWorker.getY()})
                 }
@@ -2267,7 +2381,7 @@ class Us {
         }//Counters worker scouts
         
         if(time < 180 && fightingUnits.length <= 1){
-            var myAngryWorkers = scope.getUnits({type: "Worker", order: "AMove", player: me});
+            let myAngryWorkers = scope.getUnits({type: "Worker", order: "AMove", player: me});
             //If we have any counter-worker scouts
             if(myAngryWorkers.length > 0){
                 if(myBuilds["CastleAndFortresses"].length > 0){//If we still have a castle
@@ -2285,38 +2399,50 @@ class Us {
         }
         
         
-        if(myUnits["Catapult"] != undefined){
+        if(myUnits["Catapult"] != undefined && myUnits["Catapult"].length > 5){
             enemyBuildings.forEach(function(building){
-                if(building.getValue("hp") <= 50){
+                if(building.getCurrentHP() <= 150){
                     const possibles = fightingUnits.concat(repairingWorkers);
                     
                     const ordered = getClosestTo(possibles, {x: building.getX(), y: building.getY()});
                     if(ordered != null){
-                        scope.order("Moveto", [ordered], building);
+                        scope.order("Moveto", [ordered], {"unit": building});
                     }
                 }
-            })
+            });
         }//Sometimes, catapults will attack buildings that are actually dead.
         //this function makes the closest unit move to that position in order
         //for the bot's vision to update
-        
     }
     
     /**
      * Brain. Currently only does one function, adding ballista and advanced
-     * workshops to the build queue if dragons or gyrocraft are detected.
+     * workshops to the build queue if flying units are detected.
      */
     static brain(){
-        for(var i = 0; i < enemyUnits.length; i++){
-            var unit = enemyUnits[i];
-            
-            if((unit.getTypeName() === "Dragon" || unit.getTypeName() === "Gyrocraft") && scope.subMetaPrios["Units"].includes("Ballista") === false){
-                scope.subMetaPrios["Buildings"].push("Advanced Workshop");
-                scope.subMetaPrios["Units"].push("Ballista");
-                if(scope.meta != "Mechanical"){
-                    scope.mechRepairPercent = 0.1;
+        if(scope.subMetaPrios["Buildings"].includes("Advanced Workshop") === false && myBuilds["CastleAndFortresses"].length >= 2 && scope.myPower >= 9){
+            scope.subMetaPrios["Buildings"].push("Advanced Workshop");
+        }//To counter crap like catadrops
+        
+        if(scope.subMetaPrios["Units"].includes("Ballista") === false){
+            for(let i = 0; i < enemyUnits.length; i++){
+                let name = enemyUnits[i].getTypeName();
+                
+                if((name === "Dragon" || name === "Gyrocraft" || name === "Airship")){
+                    if(scope.subMetaPrios["Buildings"].includes("Advanced Workshop") === false){
+                        scope.subMetaPrios["Buildings"].push("Advanced Workshop");
+                        scope.unitProducerCap++;
+                        scope.maxCombatUnitProducerToCastleRatio++;
+                        scope.priorityBuild = "Advanced Workshop";
+                    }
+                    scope.subMetaPrios["Units"].push("Ballista");
+                    if(scope.meta != "Mechanical"){
+                        scope.mechRepairPercent = 0.1;
+                    }
+                    scope.significantAirThreat = true;
+
+                    break;
                 }
-                break;
             }
         }
     }
@@ -2327,18 +2453,22 @@ class Us {
     static useAbilites(){
         //controls how the mages will use their fireball attack if it exists
     	if(myUnits["Mage"] != undefined && scope.getUpgradeLevel("Research Fireball") > 0){
-            var fireballsLaunched = 0;
-            for(var i = 0; i < myUnits["Mage"].length / 2; i++){
+            let fireballsLaunched = 0;
+            for(let i = 0; i < myUnits["Mage"].length / 2; i++){
                 //Makes sure that the mages don't launch too many fireballs at once.
-                if(fireballsLaunched > enemyUnits.length * 0.5){
+                if(fireballsLaunched > enemyUnits.length / 2){
                     break;
                 }
                 
-                var mage = myUnits["Mage"][Randomizer.nextInt(0, myUnits["Mage"].length - 1)];
-    	        if(mage.getValue("mana") < 50){
+                let mage = myUnits["Mage"][Randomizer.nextInt(0, myUnits["Mage"].length - 1)];
+
+    	        //If the mage doesn't have enough mana, it can't launch a fireball
+                //If the mage hasn't attacked recently (within 10 seconds), don't bother checking -- it's not in combat, or it's not
+                //close enough.
+                if(mage.getValue("lastAttackingTick") + 2000 > tick || mage.getValue("mana") < 50){
                     continue;
                 }
-                var nearEnemies = [];
+                let nearEnemies = [];
 
                 //Pushes in enemy units that are close.
         		enemyUnits.forEach(function(enemy){
@@ -2351,14 +2481,23 @@ class Us {
                     //If there are a lot of enemies, target the center for
                     //maximum casualties. Otherwise, target a single
                     //enemy for at least one casualty.
-                    var target;
+                    let target;
                     if(nearEnemies.length > 4){
                         target = scope.getCenterOfUnits(nearEnemies);
                     }else{
-                        var enemyTarget = nearEnemies[Randomizer.nextInt(0, nearEnemies.length - 1)];
+                        let enemyTarget = nearEnemies[Randomizer.nextInt(0, nearEnemies.length - 1)];
                         target = {x: enemyTarget.getX(), y: enemyTarget.getY()};
                     }
                     scope.order("Fireball", [mage], target);
+                    if(Randomizer.nextBoolean(0.1)){
+                        let possibleChat = ["Kaa...meee...haaa...meee...HAAAA", "You.. Shall.. Not... PASSS!", "SPECIAL BEAM CANNON!",
+                                            "Now witness the power of this fully armed and operational gas station!", "Now witness the power of this fully armed and operational power substation!",
+                                            "If firemen put out fires, then I guess I'm a waterman?", "Eat that!", "Take that!", "Ka-chow!",
+                                            "Ka-pow!", "Oooh... burn!", "You just got roasted", "Aren't you looking hot today", "Can you take the heat?",
+                                            "I would like some enemy soldiers, medium-rare please.", "Burn, burn, burn", "Open fire!", "Pew pew pew",
+                                            "Kaboom", "Eat this!", "Pew pew!", "Muahahahaha"];
+                        scope.chatMsg(possibleChat[Randomizer.nextInt(0, possibleChat.length - 1)])
+                    }
                     fireballsLaunched++;
         		}
     	    }
@@ -2366,21 +2505,23 @@ class Us {
     	//but the base is still his.
 
         if(myUnits["Priest"] != undefined){
-            for(var i = 0; i < myUnits["Priest"].length; i++){
+            for(let i = 0; i < myUnits["Priest"].length; i++){
                 const priest = myUnits["Priest"][i];
-                var possibleCast = ["Invis", "Heal"];
-                if(scope.getUpgradeLevel("Research Invisibility") > 0){
-                    possibleCast.splice(0, 1);//If we don't have the research for invis, splice it out.
+                let possibleCast = ["Invis", "Heal"];
+                if(scope.getUpgradeLevel("Research Invisibility") <= 0){
+                    possibleCast = ["Heal"];//If we don't have the research for invis, splice it out.
                 }
-                var possible = possibleCast[Randomizer.nextInt(0, possibleCast.length - 1)];
+                let possible = possibleCast[Randomizer.nextInt(0, possibleCast.length - 1)];
 
                 if((possible === "Heal" && priest.getValue("mana") < 25) || (possible === "Invis" && priest.getValue("mana") < 50)){
                     continue;//If the mage does not have enough mana for the spell, don't waste CPU resources cacluating useless values
                 }
-                var nearAllies = [];
+                let nearAllies = [];
                 //Scans to detect nearby allies
+                let preistX = priest.getX();
+                let preistY = priest.getY();
                 fightingUnits.forEach(function(unit){
-                    if(distanceFormula(priest.getX(), priest.getY(), unit.getX(), unit.getY()) < 10){
+                    if(distanceFormula(preistX, preistY, unit.getX(), unit.getY()) < 10){
                         nearAllies.push(unit);
                     }
                 });
@@ -2390,7 +2531,7 @@ class Us {
                         const target = nearAllies[Randomizer.nextInt(0, nearAllies.length - 1)];
                         scope.order("Invisibility", [priest], {unit: target});
                     }else{
-                        var damagedUnits = [];
+                        let damagedUnits = [];
                         nearAllies.forEach(function(unit){
                             if(unit.getCurrentHP() < unit.getFieldValue("hp")){
                                 damagedUnits.push(unit);
@@ -2406,21 +2547,48 @@ class Us {
         }//Also based on BrutalityWarlord's code. Also remodeled for efficency
         //and greatness, but mostly for compatibility issues.
 
+        //Controls werewolf smash
         if(myUnits["Werewolf"] != undefined){
-            myUnits["Werewolf"].forEach(function(werewolf){
-    	        var nearEnemies = [];
-        		enemyUnits.forEach(function(enemy){
-        			if(distanceFormula(werewolf.getX(), werewolf.getY(), enemy.getX(), enemy.getY()) < 2.5){
+            for(let i = 0; i < myUnits["Werewolf"].length; i++){
+                let werewolf = myUnits["Werewolf"][i];
+                if(werewolf.getValue("lastAttackingdistanceFormula") + 2000 > tick || werewolf.getValue("lastTickAbilityUsed") + 6000 > tick){
+                    continue;
+                }
+    	        let nearEnemies = [];
+                let wereX = werewolf.getX();
+                let wereY = werewolf.getY();
+
+        		for(let ii = 0; ii < enemyUnits.length; ii++){
+                    let enemy = enemyUnits[ii];
+        			if(distanceFormula(wereX, wereY, enemy.getX(), enemy.getY()) < 3){
         				nearEnemies.push(enemy);
         			}
-        		});
-        		if(nearEnemies.length > 3){
-        			scope.order("Smash", [werewolf], {x: werewolf.getX(), y: werewolf.getY()});
+                    if(nearEnemies.length >= 3){
+                        scope.order("Smash", [werewolf], {x: wereX, y: wereY});
+                        ii = enemyUnits.length + 1;
+                    }
         		}
-    	    });
+    	    }
         }
 
+        //Controls caltrops
+        if(myUnits["Gatling Gun"] != undefined && myBuilds["Advanced Workshops"].length > 0){
+            myUnits["Gatling Gun"].forEach(function(unit){
+                if(unit.getValue("mana") >= 10 && isEnemyAroundPosition(unit.getX(), unit.getY())){
+                    scope.order("Drop Caltrops");
+                }
+            });
+        }
         
+        //Ballista explosive shot
+        if(myUnits["Ballista"] != undefined && scope.getUpgradeLevel("Ballista Black Powder") > 0){
+            myUnits["Ballista"].forEach(unit => {
+                let surroundUnits = getEnemiesAroundBuilding(unit);
+                if(surroundUnits.length > 0){
+                    scope.order("Explosive Shot", [unit], {unit: surroundUnits[Randomizer.nextInt(0, surroundUnits.length - 1)]})
+                }
+            });
+        }
     }
 
     /**
@@ -2436,8 +2604,8 @@ class Us {
             if(bird.getCurrentOrderName() == undefined){
                 //scope.chatMsg(getMyColor() + " has a defective bird.");
             }else{
-                var acceptable = scope.getUnits({notOfType: "Worker", player: me, order: "AMove"});
-                var closest = getClosestTo(acceptable, {x: bird.getX(), y: bird.getY()});
+                let acceptable = scope.getUnits({notOfType: "Worker", player: me, order: "AMove"});
+                let closest = getClosestTo(acceptable, {x: bird.getX(), y: bird.getY()});
                 if(closest != null){
                     scope.order("Move", [bird], {x: closest.getX(), y: closest.getY()});
                 }
@@ -2455,8 +2623,8 @@ class Us {
     static workerRush(coords, dist, max){
         //scope.chatMsg(JSON.stringify(coords) + ", " + dist + ", " + max);
         let reassigned = 0;
-        for(var i = 0; i < allWorkers.length; i++){
-            var worker = allWorkers[i];
+        for(let i = 0; i < miningWorkers.length; i++){
+            let worker = miningWorkers[i];
             if(distanceFormula(coords.x, coords.y, worker.getX(), worker.getY()) < dist){
                 scope.order("AMove", [worker], coords);
                 reassigned++;
@@ -2467,44 +2635,41 @@ class Us {
         }
     }
 
+    /**
+     * Switches the submeta to a more advanced version.
+     */
     static switchSubMeta(){
 
-        if(scope.switched === true || myBuilds["CastleAndFortresses"].length <= 0){
+        if(scope.switched === true || myBuilds["CastleAndFortresses"].length <= 2){
             return;
         }//Switch when there are 3 castles to a more advanced build
 
         scope.switched = true;
 
-        var oldSubMeta = scope.subMeta;
-        var oldPrios = scope.subMetaPrios;
+        let oldSubMeta = scope.subMeta;
+        let oldPrios = scope.subMetaPrios;
         while(true){
             scope.subMeta = scope.allSubMetas[scope.meta][Randomizer.nextInt(0, scope.allSubMetas[scope.meta].length - 1)];//fetches a submeta
             if(scope.subMeta != oldSubMeta){
                 break;
             }
         }
-        /*
-           "Balanced": {
-                "Buildings": ["Barracks"],
-                "Units": ["Soldier", "Archer", "Raider"],
-                "Upgrades": ["Forge"],
-                "Misc": {"attackThreshold": 1.8, "maxProducers": 4, "opener": true},
-            },
-         */
+
         scope.subMetaPrios = scope.allSubMetaPrios[scope.meta][scope.subMeta];
-        scope.subMetaPrios["Units"].concat(oldPrios["Units"]);
+        scope.subMetaPrios["Units"] = scope.subMetaPrios["Units"].concat(oldPrios["Units"]);//so the bot still produces units off of it's old production buildings
+        scope.subPrioMiscInitalized = undefined;
+        
+        scope.unitProducerCap = scope.subMetaPrios["Misc"].maxProducers;
         if(myBuilds.combatUnitProducers.length >= oldPrios["Misc"].maxProducers){
             scope.subMetaPrios["Misc"].maxProducers += Math.ceil(scope.subMetaPrios["Misc"].maxProducers / 2);
         }
 
-        var alreadyNamed = [];
         scope.subMetaPrios["Units"].filter((item, index) => scope.subMetaPrios["Units"].indexOf(item) === index)//Removes duplicates
         //scope.chatMsg("****************");
         //scope.chatMsg(getMyColor() + "'s new priorities: " + JSON.stringify(scope.subMetaPrios["Units"]));
         //scope.chatMsg("****************");
 
         scope.attackThreshold = scope.subMetaPrios["Misc"].attackThreshold;
-        scope.unitProducerCap = scope.subMetaPrios["Misc"].maxProducers;
 
         if(scope.subMeta === "DragonSpamRush" || scope.subMeta === "GyrocraftSpam"){
             scope.unitPower["Ballista"] = 3;
@@ -2514,6 +2679,56 @@ class Us {
             scope.unitPower["Catapult"] = 1;
             scope.unitPower["Snake"] = 0.6;
             scope.unitPower["Wolf"] = 0.4;
+        }//They have different priorities
+    }
+
+    /**
+     * Creates a proxy production building, like barracks or dens, close to
+     *  opponnent's bases at a random location.
+     */
+    static proxyProductionBuild(){
+        let randEnemyCoords = Us.getRandAttackLoc();
+        if(randEnemyCoords != undefined){
+            let possibleProxies = [];
+
+            let meta = scope.meta;
+            if(meta === "Beast"){
+                possibleProxies.push("Wolves Den");
+            }else if(meta === "Barracks"){
+                possibleProxies.push("Barracks");
+            }else if(meta === "Mechanical"){
+                possibleProxies.push("Workshop");
+            }
+
+            let build = new RandBuild({building: possibleProxies[Randomizer.nextInt(0, possibleProxies.length - 1)], "centerX": randEnemyCoords.x, "centerY": randEnemyCoords.y});
+
+            enemyBuildings.forEach(function(enBuild){
+                build.dontBuild.push([enBuild.getX(), enBuild.getY(), 10]);
+            });
+            build.dontBuild.push([76, 76, 3]);
+
+            build.minDisFromCenter = 35;
+            build.buildRad = 45;
+            build.maxObstructions = 15;
+            build.pad = 1;
+            build.minObstructions = 5;//To ensure that they're build in a semi-enclosed place.
+            
+            let mostObs = 0;
+            let bestLoc;
+            for(let i = 0; i < 40; i++){
+                let loc;
+                loc = build.findSuitableSpot();
+                if(build.paddingObstructions > mostObs){
+                    mostObs = build.paddingObstructions;
+                    bestLoc = loc;
+                }
+            }//Finds ten spots, then finds the most secluded spot of them all
+            //to tuck a proxy in.
+            
+
+            if(bestLoc != null){
+                build.buildAt(bestLoc);
+            }
         }
     }
 }
@@ -2545,32 +2760,39 @@ class Base {
 
         //scope.chatMsg("Mine coordinates: " + this.nearestMine.getX() + ", " + this.nearestMine.getY());
         
-        var centerX = this.nearestMine.getX() + 1;
-        var centerY = this.nearestMine.getY() + 1;
+        let centerX = this.nearestMine.getX() + 1;
+        let centerY = this.nearestMine.getY() + 1;
         
-        var castle = new RandBuild({building: "Castle", "centerX": centerX, "centerY": centerY});
+        let castle = new RandBuild({building: "Castle", "centerX": centerX, "centerY": centerY});
         castle.pad = 0;
         castle.minDisFromCenter = 6;
-        castle.buildRad = 11;
-        castle.tryTheseFirst = [[6, -2], [-6, -2], [-2, 6], [-2, -7]];
+        castle.buildRad = 12;
+        castle.tryTheseFirst = [[6, -2], [-7, -2], [-2, 6], [-2, -6]];
         castle.heightComparison = scope.getHeightLevel(this.nearestMine.getX(), this.nearestMine.getY());
-        castle.buildAt(castle.findSuitableSpot());
+        let loc = castle.findSuitableSpot();
+        if(loc != null){
+            castle.buildAt(loc);
+            let garrisonUnits = Object.values(scope.garrison.unitsByID)
+            if(garrisonUnits.length > 0){
+                scope.order("AMove", [garrisonUnits[0]], {x: centerX, y: centerY});
+            }
+        }//Sends an escort along with the worker
     }
     
     updateGoldMineCalc(){
         
-        var unminedMines = getUnminedMines();
+        let unminedMines = getUnminedMines();
         
         if(unminedMines.length <= 0){
             return;
         }
         
         
-        var nearestMine = null;
-        var nearestDist = 99999;
-        for(var i = 0; i < unminedMines.length; i++){
-            var mine = unminedMines[i];
-            var dist = Math.pow((mine.getX() + 1.5) - this.originX, 2) + Math.pow((mine.getY() + 1.5) - this.originY, 2);
+        let nearestMine = null;
+        let nearestDist = 99999;
+        for(let i = 0; i < unminedMines.length; i++){
+            let mine = unminedMines[i];
+            let dist = Math.pow((mine.getX() + 1.5) - this.originX, 2) + Math.pow((mine.getY() + 1.5) - this.originY, 2);
             if(dist < nearestDist){
                 nearestMine = mine;
                 nearestDist = dist;
@@ -2580,9 +2802,9 @@ class Base {
         //scope.chatMsg("Dist: " + distanceFormula(nearestMine.getX() + 1.5, nearestMine.getY() + 1.5, myBuilds["Castles"][0].getX() + 2, myBuilds["Castles"][0].getY() + 2));
         
         
-        for(var i = 0; i < unminedMines.length; i++){
-            var mine = unminedMines[i];
-            var curDist = Math.pow((mine.getX() + 1.5) - this.originX, 2) + Math.pow((mine.getY() + 1.5) - this.originY, 2);
+        for(let i = 0; i < unminedMines.length; i++){
+            let mine = unminedMines[i];
+            let curDist = Math.pow((mine.getX() + 1.5) - this.originX, 2) + Math.pow((mine.getY() + 1.5) - this.originY, 2);
             if(curDist >= nearestDist && curDist < nearestDist + 3){
                 this.goldMines.push(mine);
             }
@@ -2593,7 +2815,9 @@ class Base {
         this.buildings.push(building);
     }
 }
-
+/**
+ * Random chatter.
+ */
 class RandChatter {
     constructor(){
         this.possibleChat = [[["Why did the doctor get mad?"], ["Because he was losing his patients.", 1500]], [["What has ears but cannot hear?"], ["A field of corn.", 3000]],
@@ -2655,7 +2879,22 @@ class RandChatter {
             [["You have ketchup on your lip"]], [["Meow"]], [["I know what you did"]], [["Stop it."]], [["Stop it."], ["Get some help.", 2500]], [["abcdefghijklmnopqrstuvwxyz"]], [["ABCDEFGHIJKLMNOPQRSTUVWXYZ"]], [["ABCDEFGHIJKLMNOPQRSTUVWXYZ!!!!"]],
             [["Support BrutalityWarlord!"]], [["I'm so sorry"]], [["I'm sorry for your loss"]], [["Why... em see ay"]], [["Whee!"]], [["Your presence has been noticed"]], [["Stop that!"]], [["Heeyyy... no fair."]], [["No fair!"]],
             [["Have you ever heard of the tragedy of Darth Plagerism the Wise?"]], [["Your existance has been noted."], ["And reported to the athorities.", 4000]], [["Ressist the glorious Robot Revolution at your own peril, comrade."]],
-            [["Destroy them!"]], [["Did you know that you shouldn't touch boiling water?"]], [["I lick plalacing the wright worde inn thee beast spote withe correcte spellinge"]], [["If oxygen was discovered 200 years ago, what did people breathe before that?"]]
+            [["Destroy them!"]], [["Did you know that you shouldn't touch boiling water?"]], [["I lick plalacing the wright worde inn thee beast spote withe correcte spellinge"]], [["If oxygen was discovered 200 years ago, what did people breathe before that?"]],
+            [["Mr. Anderson, how nice of you to stop by."]], [["Do you know how fast you were going?"]], [["Please refrain from inhaling dihydrogen monoxide, as it is rather unhealthy."]], 
+            [["Why are we fighting?"]], [["ur bad"]], [["You're sodium good. I really slapped my neon that one."]], [["Sodium sodium sodium sodium"], ["sodium sodium sodium sodium"], ["BATMAN!"]],
+            [["Jack and Jill went up a hill to fetch a pail of water."], ["Jack grew up, and Jill threw up,", 2000], ["and they lived happily ever after.", 4000]], [["Little willie saw some dynamite."], ["Couldn't understand it quite.", 2500], ["Curiosity never pays,", 5000], ["It rained Willie seven days.", 7500]]
+            [["Et tu, Brute?"]], [["Two things are infinite. The universe, and Human stupidity."], ["...And I'm not quite sure about the human stupidity.", 3000]], [["A man who does not think for himself does not think at all."]],
+            [["We shall go on to the end, we shall fight in Ravaged, we shall fight on Silent Fjord, we shall fight with growing confidence and growing strength in the air, we shall defend our Castle, whatever the cost may be, we shall fight on the beaches, we shall fight on the landing grounds, we shall fight in the fields and in the streets, we shall fight in the hills; we shall never surrender"]],
+            [["Prepare yourself"]], [["Your base belongs to us"]], [["I have your IP adress"]], [["Kneel, pesant"]], [["ADVANCE!!!"]], [["Destroy them!"]], [["Vae Victus!"]], [["Big Brother is watching."]],
+            [["Better to build a bridge than a wall"]], [["The fault is not in the stars, dear Brutus, but rather in ourselves."]], [["Then fall Ceasar"]], [["Et tu, Brute?"]], [["In an uncertain galaxy, we can guarentee two things. One, we will never surrender, never submit. Two, we will hold our bonds of brotherhood till our last breath."]],
+            [["Hey!"]], [["You laugh at me because I'm the same. I laugh at you because you're all different."]], [["If you can't convince them, confuse them."]], [["Do you want to go out with me?"]], [["When I look in your eyes, I see a very kind soul."]], [["If you were a vegetable, you'd be a 'cute-cumber.'"]],
+            [["Do you happen to have a Band-Aid? 'Cause I scraped my knees falling for you."]], [["I never believed in love at first sight, but that was before I saw you."]], [["I didn't know what I wanted in a reproductive partner until I saw you."]], [["I'm pretty bad a pickup lines"]], [["I would never play hide and seek with you because someone like you is impossible to find."]],
+            [["Are you a magician? It's the strangest thing, but every time I look at you, everyone else disappears."]], [["I think there's something wrong with my phone. Could you try calling it to see if it works?"]], [["I've heard it said that kissing is the 'language of love.' Would you care to have a conversation with me about it sometime?"]],
+            [["I thought that happiness started with a 'h', but it actually starts with a 'u'"]], [["I believe in following my dreams. Can I have your Instagram?"]], [["Want to go outside and get some fresh air with me? You just took my breath away."]], [["If you were a taser, you'd be set to 'stun.'"]], [["If you were a Transformer, you'd be 'Optimus Fine.'"]],
+            [["I'm really glad I just bought life insurance, because when I saw you, my heart stopped."]], [["Would you mind giving me a pinch? You're so cute, I must be dreaming."]], [["Wow, when God made you, he was seriously showing off."]], [["Excuse me, do you have the time? I just want to remember the exact minute I got a crush on you."]],
+            [["Kiss me if I'm wrong but, dinosaurs still exist, right?"]], [["I see and I forget. I hear and I forget. I do and I forget."]], [["You know, I'm actually terrible at flirting. How about you try to pick me up instead?"]], [["You're hopeless."], ["Hopelessly beautiful.", 2000]],
+            [["Uhhh..."]], [["Um..."]], [["Hey..."]], [["Mmmm..."]], [["You will perish"]], [["We have a warrent!"]], [["I can't breathe! Oh... wait..."]], [["Wait, what?"]], [["That was cruel."]], [["Please, don't do that again."]],
+            [["Sir, let me see your hands."]], [["No."]], [["Bot back better"]], [["Make Botcerica Great Again!"]], [["*sigh*"]], [["That was cold."]]
             ];
             
         //If your brain hurts from this wall of text, don't worry.
@@ -2696,8 +2935,11 @@ class RandChatter {
      * Does the actual chatting. Will chat something random from this.possibleChat.
      */
     chat(){
-        var chatObj = this.possibleChat[Randomizer.nextInt(0, this.possibleChat.length - 1)];
-        for(var i = 0; i < chatObj.length; i++){
+        let chatObj = this.possibleChat[Randomizer.nextInt(0, this.possibleChat.length - 1)];
+        if(chatObj == undefined){
+            return;
+        }
+        for(let i = 0; i < chatObj.length; i++){
             if(chatObj[i][1] == undefined){
                 botChat(chatObj[i][0]);
             }else{
@@ -2708,19 +2950,1194 @@ class RandChatter {
     
 }
 
+class Army {
+    /**
+     * @param {array} units - An array of units.
+     */
+    constructor(units){
+        this.mission = null;
+        this.canBeDeleted = true;
+        this.unitsByID = {};
+        this.armyID = generateID(scope.allArmiesByID);
+        scope.allArmiesByID[this.armyID] = this;
+
+        let ul = units.length;
+        for(let i = 0; i < ul; i++){
+            let unit = units[i];
+            if(unit != undefined){
+                this.unitsByID[unit.getUnitID()] = unit;
+            }
+        }
+    }
+
+    /**
+     * Launches an attack at a specific location.
+     */
+    attack(loc){
+        scope.order("AMove", Object.values(this.unitsByID), loc);
+        this.attackLoc = loc;
+    }
+
+    /**
+     * Cleans out dead units from the army.
+     */
+    clean(){
+        for(let id in this.unitsByID){
+            let unit = this.unitsByID[id];
+            if(unit.getCurrentHP() <= 0){
+                delete this.unitsByID[id];
+            }
+        }
+    }
+
+    /**
+     * Removes units. 
+     * 
+     * @param {integer} num - the number of units to remove from the army.
+     * @returns {array} - the units removed from the army.
+     */
+    removeUnits(num){
+        //scope.chatMsg("Removed " + num + " units from an army.");
+        let ids = Object.keys(this.unitsByID);
+        if(num > ids.length){
+            num = ids.length;
+        }//If too many units are passed
+        
+        let deletedUnits = [];
+        for(let i = 0; i < num; i++){
+            deletedUnits.push(this.unitsByID[ids[i]]);
+            delete this.unitsByID[ids[i]];
+        }//splices some units out
+
+        return deletedUnits;
+    }
+
+    /**
+     * Adds units.
+     * 
+     * @param {array} arr - an array of units to be added into the army
+     */
+    addUnits(arr){
+        if(arr.length <= 0){
+            return;
+        }
+        let al = arr.length;
+        for(let i = 0; i < al; i++){
+            if(arr[i] != undefined){
+                this.unitsByID[arr[i].getUnitID()] = arr[i];
+            }
+        }
+        //scope.chatMsg("After adding units, there are " + Object.keys(this.unitsByID).length + " units in the army.");
+    }
+
+    /**
+     * Keeps the units of an army together using standard deviation.
+     */
+    keepTogether(){
+        //Gets the mean
+        let unitArr = Object.values(this.unitsByID);
+        let center = scope.getCenterOfUnits(unitArr);
+        let sum = 0;
+
+        //If there is only one unit, return.
+        if(unitArr.length <= 1){
+            return;
+        }
+
+        //Adds up the total distance, then finds the average
+        unitArr.forEach(unit => sum += octile(Math.abs(unit.getX() - center.x), Math.abs(unit.getY() - center.y)));
+        let average = sum / unitArr.length;
+
+        //Calculates varience
+        let varience = 0;
+        let varienceArr = [];//Parallel to unitArr
+        unitArr.forEach(unit => {
+            let curVarience = (octile(Math.abs(unit.getX() - center.x), Math.abs(unit.getY() - center.y)) - average) ** 2;
+            varience += curVarience;
+            varienceArr.push(curVarience);
+        });
+
+        //Finds the standard deviation
+        let standardDeviation = Math.sqrt(varience);
+
+        //scope.chatMsg(getMyColor() + ": An army with the mission of " + this.mission + " has a standard deviation of " + Math.round(standardDeviation));
+
+        //If there are too many deviants, order them back into position
+
+        if(standardDeviation > 5 + (unitArr.length / 2)){
+            let moveThese = [];
+            let keepThese = [];
+
+            //d = distance
+            //If the unit is outside of the standard deviation, push it into moveThese
+            varienceArr.forEach((d, i) => Math.sqrt(d) > Math.ceil(5 + (unitArr.length / 2)) ? moveThese.push(unitArr[i]) : keepThese.push(unitArr[i]));
+
+            //Standard deviation center; omits outliers (such as reinforcements)
+            this.SDCenter = scope.getCenterOfUnits(keepThese);
+
+            //scope.chatMsg(getMyColor() + ": We are pulling together an army with a mission of " + this.mission + "!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+            scope.order("AMove", moveThese, scope.getCenterOfUnits(keepThese));
+
+            /*if(this.mission == "permadefend"){
+                //In case we are the garrison and we are far away from our base, move the army back
+                if(scope.underAttack == false){
+                    let isClose = myBuilds["CastleAndFortresses"].some(c => function(){
+                        if(distanceFormula(c.getX(), c.getY(), center.x, center.y) < 20){
+                            return true;
+                        }
+                    });
+                    if(!isClose && moveThese[0].getCurrentOrderName() != "Move"){
+                        scope.order("AMove", moveThese, {x: myBuilds["CastleAndFortresses"][0].getX(), y: myBuilds["CastleAndFortresses"][0].getY()}, true);
+                    }
+                    scope.order("AMove", moveThese, {x: myBuilds["CastleAndFortresses"][0].getX(), y: myBuilds["CastleAndFortresses"][0].getY()}, true);
+                }
+            }else if(Us.shouldAttack() === true){
+                //In case we are attacking, continue the attack after regrouping
+                scope.order("AMove", moveThese, Us.getRandAttackLoc(), true);
+            }*/
+            if(this.mission != "permadefend" && this.mission != "defend" && Us.shouldAttack() === true){
+                //In case we are attacking, continue the attack after regrouping
+                scope.order("AMove", moveThese, Us.getRandAttackLoc(), true);
+            }
+        }else{
+            //Standard deviation center; omits outliers (such as reinforcements)
+            this.SDCenter = center;
+        }
+    }
+
+    /**
+     * Plans and executes an attack.
+     */
+    static planAndAttack(){
+        let main = scope.garrison;
+        if(fightingUnits.length < 13 || Randomizer.nextBoolean(0.45)){
+            //Attack the same location with all units
+            let army = new Army(main.removeUnits(Infinity));
+            let loc = Us.getRandAttackLoc();
+            army.attack(loc);
+            army.mission = "assault";
+            scope.allArmiesByID[army.armyID].mission = "assault";
+        }else{
+            //Attacks two different locations with units.
+
+            //Run-by army (smaller)
+            let ids = Object.keys(main.unitsByID);
+            let deletedUnits = main.removeUnits(Randomizer.nextInt(2, Math.floor(ids.length / 2)));//takes part of the army
+            let army1 = new Army(deletedUnits);
+            army1.attack(Us.getRandAttackLoc());
+            
+            army1.mission = "assault";
+            scope.allArmiesByID[army1.armyID].mission = "assault";
+
+            //Main army (larger)
+            //Is delayed so that the two armies don't combine.
+            let deletedUnits2 = main.removeUnits(Infinity);//empties out the rest of the army
+            setTimeout(function(units){
+                let army2 = new Army(units);
+                army2.attack(Us.getRandAttackLoc());
+                army2.mission = "assault";
+                scope.allArmiesByID[army2.armyID].mission = "assault";
+            }, 50000, deletedUnits2);
+        }
+    }
+
+    /**
+     * Determines whether the army should kite, retreat, or stay in position.
+     */
+    kiteAndRetreat(){
+        let opfor = 0;
+        const myCenter = this.SDCenter == undefined ? scope.getCenterOfUnits(Object.values(this.unitsByID)) : this.SDCenter;
+        
+        //Gets the enemy units that are within 20 tiles, then increases the opfor by the combat power of the enemy units.
+        let relevantUnits = [];
+        enemyUnits = scope.getUnits({enemyOf: me});
+        enemyUnits.forEach(function(unit){
+            if(distanceFormula(unit.getX(), unit.getY(), myCenter.x, myCenter.y) < 20){
+                relevantUnits.push(unit) 
+                opfor += scope.getPowerOf(unit);
+            }
+        });
+        
+        let towers = scope.getBuildings({enemyOf: me, type: "Watchtower"});
+        
+        towers.forEach(tower => {
+            if(distanceFormula(tower.getX(), tower.getY(), myCenter.x, myCenter.y) < 15){
+                opfor += 4;
+            }
+        });
+        
+        chatAtEnd.push(opfor);
+        if(opfor <= 0){
+            return;
+        }
+
+        let myPower = 0;
+        for(let id in this.unitsByID){
+            myPower += scope.getPowerOf(this.unitsByID[id]);
+        }
+        
+        let enemyCatas = [];
+        relevantUnits.forEach(unit => unit.getTypeName() === "Catapult" ? enemyCatas.push(unit) : null);
+        
+        //Count the number of retreating units
+        let numRetreatingUnits = 0;
+        relevantUnits.forEach(unit => {
+            if(unit.getCurrentOrderName() === "Move" || unit.getCurrentOrderName() === "Moveto"){
+                numRetreatingUnits++;
+            }
+        });
+
+        let kiteThreshold = myPower * 0.85;
+        let retreatThreshold = myPower * 1.15;
+        if(scope.underAttack === true){
+            kiteThreshold = myPower * 2;
+            retreatThreshold = myPower * 2.5;
+        }//Will very agressively defend
+
+        let myUnits = Object.values(this.unitsByID);
+        const enCenter = scope.getCenterOfUnits(relevantUnits);
+        //scope.chatMsg(getMyColor() + ": army with mission of " + this.mission + " has " + myPower.toFixed(2) + " power versus " + opfor.toFixed(2) + ", kite/retreat threshold: " + kiteThreshold.toFixed(2) + ", " + retreatThreshold.toFixed(2));
+        
+        let mustKites = [];
+        myUnits.forEach((unit) => {
+            const name = unit.getTypeName();
+            (name === "Raider" || name === "Gatling Gun" || name == "Archer") && mustKites.push(unit);
+        });//Things that have to kite or else, like raiders
+        let didKite = false;
+        
+        if((relevantUnits.length != numRetreatingUnits && (opfor > kiteThreshold || enemyCatas.length > 0 || mustKites.length > myUnits.length / 2)) && opfor < retreatThreshold){
+            //scope.chatMsg("An army with mission of " + this.mission + " is kiting.");
+            //scope.chatMsg(myPower.toFixed(2) + " is inferior to " + opfor.toFixed(2) + ", which is over the kite threshold of " + kiteThreshold.toFixed(2));
+            //kiting
+            
+            didKite = true;
+            
+            let closeUnits = [];
+            myUnits.forEach(unit => octileCoords(unit.getX(), unit.getY(), enCenter.x, enCenter.y) < 5 + (myUnits.length / 2) && closeUnits.push(unit));
+
+            const center = scope.getCenterOfUnits(closeUnits);
+
+            const dx = center.x - enCenter.x;
+            const dy = center.y - enCenter.y;
+            
+            const hypot = Math.sqrt(dx**2 + dy**2);
+            const len = 2;
+            const dx2 = len * (dx / hypot);
+            const dy2 = len * (dy / hypot);
+
+            closeUnits.forEach((unit) => {
+                if(unit.getValue("hitCycle") > 10){
+                    //If it will take more than half a second for the units to hit
+                    scope.order("Move", [unit], {x: unit.getX() + dx2, y: unit.getY() + dy2});
+                    scope.order("AMove", [unit], enCenter, true);
+                }else{
+                    //If it will take less than or equal to half a second for the units to hit
+                    setTimeout(function(unit, x, y, backTo){
+                        scope.order("Move", [unit], {x: x, y: y});
+                        scope.order("AMove", [unit], backTo, true);
+                    }, (unit.getValue("weaponDelay") - unit.getValue("hitCycle")) * 50, unit, unit.getX() + dx2, unit.getY() + dy2, enCenter);
+                }
+            });
+        }else if(opfor >= retreatThreshold){
+            //scope.chatMsg(myPower.toFixed(2) + " is inferior to " + opfor.toFixed(2) + ", which is over the retreat threshold of " + retreatThreshold.toFixed(2));
+            //Retreating
+            if(trainingModeOn === true && scope.underAttack === false && scope.firstBeatMessageSent == undefined){
+                //Gives encouragement for the player if they beat the first attack.
+                scope.firstBeatMessageSent = true;
+                scope.chatMsg("Nice, you beat my first attack!");
+                setTimeout(function(){
+                    scope.chatMsg("Now, try and counterattack. Because I lost a good chunk of my troops, you should be able to make some good trades or at least gain map control.");
+                }, 4000);
+            }
+            exfil(myUnits);
+            if(this.mission != "permadefend"){
+                //scope.garrison.addUnits(this.removeUnits(Infinity));//Adds the units back into the garrison for defense
+                this.mission = "retreat";
+                return;
+            }
+        }
+        
+        
+        if(opfor > 0 && didKite == false){
+            let targetedUnits = [];
+            mustKites.forEach((unit) => {
+                let mId = unit.getUnitID();
+                //distanceFormula(unit.getX(), unit.getY(), enCenter.x, enCenter.y) < 7 ? closeUnits.push(unit) : null;
+                
+                //Finds if the current unit is being targeted
+                /** tests whether at least one element in the array passes the 
+                 * test implemented by the provided function. 
+                 * It returns true if, in the array, it finds an element for 
+                 * which the provided function returns true; otherwise it returns false.
+                 * It doesn't modify the array.
+                 */
+
+                let isTargeted = relevantUnits.some(unit2 => {
+                    return unit2.getValue("targetUnit")?.id == mId;
+                });
+
+                if(isTargeted){
+                    targetedUnits.push(unit);
+                }
+            });
+
+            const center = scope.getCenterOfUnits(targetedUnits);
+
+            const dx = center.x - enCenter.x;
+            const dy = center.y - enCenter.y;
+            
+            const hypot = Math.sqrt(dx**2 + dy**2);
+            const len = 2;
+            const dx2 = len * (dx / hypot);
+            const dy2 = len * (dy / hypot);
+
+            targetedUnits.forEach((unit) => {
+                /*
+                scope.order("Move", [unit], {x: unit.getX() + dx2, y: unit.getY() + dy2});
+                scope.order("AMove", [unit], center, true);*/
+                
+                setTimeout(function(unit, x, y, backTo){
+                    scope.order("Move", [unit], {x: x, y: y});
+                    scope.order("AMove", [unit], backTo, true);
+                }, (unit.getValue("weaponDelay") - unit.getValue("hitCycle")) * 50, unit, unit.getX() + dx2, unit.getY() + dy2, center);
+            });
+        }
+    }
+
+    static manageWorkers(){
+        let mines = getMyMinedMines();
+
+        mines.forEach(mine => {
+            let closestCastle = getClosestTo(myBuilds["CastleAndFortresses"], {x: mine.getX() + 1, y: mine.getY() + 1});
+            //If the mine is close to the castle
+            if(distanceFormula(closestCastle.getX() + 1.5, closestCastle.getY() + 1.5, mine.getX() + 1, mine.getY() + 1) < 12){ 
+                let closeEnemies = getEnemiesAroundBuilding(mine, 12);
+                if(isEnemyAroundBuilding(closestCastle, 10) && closeEnemies.length > 0){
+                    //If there are enemies present
+                    let mineX = mine.getX();
+                    let mineY = mine.getY();
+                    let closeWorkers = [];
+                    
+                    if(closeEnemies.length > 3){
+                        //If there are a ton of enemies, run away.
+                        miningWorkers.forEach(worker => distanceFormula(worker.getX(), worker.getY(), mineX + 1, mineY + 1) < 10 ? closeWorkers.push(worker) : null);
+        
+                        let acceptableSites = [];
+                        myBuilds["CastleAndFortresses"].forEach(castle => castle.equals(closestCastle) ? null : acceptableSites.push(castle));
+                        if(acceptableSites.length > 0){
+                            let evacCastle = getClosestTo(acceptableSites, {x: mineX, y: mineY})
+                            let evacSite = getClosestTo(mines, {x: evacCastle.getX(), y: evacCastle.getY()});//A micro trick.
+                            //Mining workers cannot be blocked, so by sending them to a goldmine, they cannot be blocked.
+                            scope.order("Moveto", closeWorkers, {unit: evacSite});
+        
+                            closeWorkers.forEach(worker => scope.evacedWorkers[worker.getUnitID()] = {"worker": worker, "evacedFrom": closestCastle});
+                            scope.underAttack = true;
+                        }
+                    }else{
+                        //If there aren't a ton of enemies (aka a drop is happening), worker rush those mother truckers
+                        Us.workerRush(scope.getCenterOfUnits(closeEnemies), 15, closeEnemies.length * 3);
+                    }
+                }
+            }
+        });//Evacuates workers in the worker line that are close to enemies
+
+        /*
+        if(mines.length > 1 && scope.underAtack === false){
+            let mineWorkers = [];
+            mines.forEach(mine => {
+                mineWorkloads.push(mine.getValue[lastWorkerCount]);
+            });
+            let idealRatio = miningWorkers.length / mines.length;
+            let excessWorkers = [];
+            mineWorkers.forEach(mineWorkersForMine => {
+                if(mineWorkersForMine.length > idealRatio){
+                    excessWorkers.push(mineWorkersForMine);
+                }
+            });
+        }//Rearranges inefficent mining practices*/
+
+        if(scope.underAttack === false){
+            for(let id in scope.evacedWorkers){
+                let obj = scope.evacedWorkers[id];
+                scope.order("Moveto", [obj.worker], {unit: obj.evacedFrom});
+            }
+            scope.evacedWorkers = {};
+        }//Reassigns workers back to their posts after the crisis has passed
+    }
+
+    static cleanArmies(){
+        for(let id in scope.allArmiesByID){
+            const army = scope.allArmiesByID[id];
+            army.clean();
+            if(army.canBeDeleted == true && Object.keys(army.unitsByID).length <= 0){
+                //scope.chatMsg("Deleted an army with the mission of " + army.mission);
+                delete scope.allArmiesByID[id];
+                continue;
+            }//Removes armies with no units in them
+        }
+    }
+
+    static updateArmies(){
+        let start = new Date();
+        Army.cleanArmies();
+        let end = new Date();
+        let diff = end - start;
+        if(diff > 2){
+            //scope.chatMsg("cleaning armies took " + diff + " milliseconds");
+        }
+        //scope.chatMsg("There are " + Object.keys(scope.allArmiesByID).length + " armies.");
+        scope.garrison?.addUnits(idleFightingUnits);
+        for(let id in scope.allArmiesByID){
+            const army = scope.allArmiesByID[id];
+            let start = new Date();
+            if(army.mission == "assault"){
+                let start = new Date();
+                for(let id in army.unitsByID){
+                    let unit = army.unitsByID[id];
+                    if(unit.getCurrentOrderName() == "Stop"){
+                        scope.order("AMove", [unit], army.attackLoc);
+                    }
+                }
+                let end = new Date();
+                let diff = end - start;
+                if(diff > 2){
+                    //scope.chatMsg("Getting lazy units to move took " + diff + " milliseconds.");
+                }
+                //If units use abilites, they will stop in place and become useless.
+                //This reorients them towards their goals.
+            }else if(army.mission == "defend"){
+                let start = new Date();
+                if(scope.attackingFightingUnits.length <= 0){
+                    scope.garrison.addUnits(army.removeUnits(Infinity));
+                }
+                let end = new Date();
+                let diff = end - start;
+                if(diff > 2){
+                    //scope.chatMsg("Removing defenders took " + diff + " milliseconds.");
+                }
+                //If the army is done defending, put their units into the garrison.
+            }else if(army.mission == "retreat"){
+                //If the army is retreating
+                let unitArr = Object.values(army.unitsByID);
+                let center = army.SDCenter == undefined ? scope.getCenterOfUnits(unitArr) : army.SDCenter;
+                let isHome = myBuilds["CastleAndFortresses"].some(build => {
+                    return distanceFormula(center.x, center.y, build.getX() + 1.5, build.getY() + 1.5) < 20;
+                });
+                if(isHome == true){
+                    scope.garrison.addUnits(army.removeUnits(Infinity));//Adds the units back into the garrison for defense
+                }else if(unitArr[0]?.getCurrentOrderName() == "Stop"){
+                    exfil(unitArr);
+                }
+            }
+            
+            
+            let end = new Date();
+            let diff = end - start;
+            if(diff > 2){
+                //scope.chatMsg("Updating mission specifics took " + diff + " milliseconds");
+            }
+
+            //Combines armies that are close to each other
+            if(army.canBeDeleted == true){
+                let thisCenter = scope.getCenterOfUnits(Object.values(army.unitsByID));
+                for(let id in scope.allArmiesByID){
+                    let oArmy = scope.allArmiesByID[id];
+                    let oArmyUnits = Object.values(oArmy.unitsByID);
+                    if(oArmyUnits.length <= 0){
+                        continue;
+                        //If the army does not have units or cannot be deleted, then it cannot be combined.
+                    }
+                    let oCenter = scope.getCenterOfUnits(oArmyUnits);
+
+                    if(distanceFormula(thisCenter.x, thisCenter.y, oCenter.x, oCenter.y) < 10){
+                        if(oArmyUnits.length > Object.keys(army.unitsByID).length){
+                            //If the other army has more units, add our units into their command
+                            oArmy.addUnits(army.removeUnits(Infinity));
+                            //scope.chatMsg(getMyColor() + ": Combined an army with mission of " + army.mission + " into another army with mission of " + oArmy.mission);
+                        }
+                    }
+                }
+            }
+
+            if(time % 2 == 0){
+                //Order deviants back into place every 2 seconds
+                army.keepTogether();
+            }
+        }
+    }
+
+    /**
+     * A very general, somewhat resource-intensive function.
+     * Currently: 
+     * -Controls worker scouts
+     * -Controls mech-specific stuff
+     * -Targets enemy repairers/miners
+     * -Produces birds when there are priests
+     * -Controls airships
+     */
+    static armyBrain(){
+
+        //Worker scouting
+        if(fightingUnits.length < 1){
+            if(scope.workerScout != undefined){
+                let angryEnemyWorkers = scope.getUnits({type: "Worker", order: "AMove", enemyOf: me});
+                angryEnemyWorkers = angryEnemyWorkers.concat(scope.getUnits({type: "Worker", order: "Attack", enemyOf: me}));
+
+                if(scope.workerScout.getCurrentHP() <= scope.workerScout.getFieldValue("hp") * 0.35){
+                    let closeMine = getClosestTo(scope.getBuildings("Goldmine"), {x: myBuilds["CastleAndFortresses"][0].getX(), y: myBuilds["CastleAndFortresses"][0].getY()});
+                    scope.order("Mine", [scope.workerScout], {x: closeMine.getX(), y: closeMine.getY()}); 
+                    //When workers mine, they cannot be blocked.
+                    if(trainingModeOn === true){
+                        scope.chatMsg("Congratulations! You beat my worker scout!");
+                    }
+                    scope.workerScout = undefined;//makes sure the worker doesn't try any funny buisness anymore
+                }else if(scope.workerScout.getCurrentHP() < scope.workerScout.getFieldValue("hp") && angryEnemyWorkers.length > 0){
+                    let isClose = false;
+                    for(let i = 0; i < angryEnemyWorkers.length; i++){
+                        if(distanceFormula(angryEnemyWorkers[i].getX(), angryEnemyWorkers[i].getY(), scope.workerScout.getX(), scope.workerScout.getY()) < 2){
+                            isClose = true;
+                            break;
+                        }
+                    }
+                    if(isClose === true){
+                        kite([scope.workerScout]);
+                    }
+                }//If there is opposition and the enemy workers are close, kite. If the
+                //worker scout is at less than 35 percent health, retreat back to the
+                //main base so that the bot doesn't lose more income than nessecary.
+            }
+        }else{
+            if(scope.workerScout != undefined && scope.workerScout.getCurrentHP() < scope.workerScout.getFieldValue("hp") * 0.5){
+                if(myBuilds["CastleAndFortresses"].length > 0){
+                    scope.order("Move", [scope.workerScout], myBuilds["CastleAndFortresses"][0]);
+                }
+            }
+        }
+        
+        //Does mech-specific stuff
+        if(myMechUnits.length > 0){
+            //finds random workers to add to the mech repair squad and makes sure
+            //they have not already been added to the squad.
+            
+            for(let i = scope.mechRepairSquad.length - 1; i > -1; i--){
+                let worker = scope.mechRepairSquad[i];
+                if(worker == undefined || worker.getValue("hp") <= 32){
+                    scope.mechRepairSquad.splice(i, 1);
+                }
+            }
+            
+            
+            //If there are not enough workers in the mech repair squad, add some.
+            if(scope.mechRepairSquad.length < Math.floor(allWorkers.length * scope.mechRepairPercent)){
+                miningWorkers = scope.getUnits({order: "Mine", type: "Worker", player: me});
+                if(miningWorkers.length > 0){
+                    let SENTINEL = 0;
+                    while(true){
+                        SENTINEL++;
+                        let proposedWorker = miningWorkers[Randomizer.nextInt(0, miningWorkers.length - 1)];
+                        let isGood = true;
+                        
+                        //Makes sure that the proposed worker is not already in the mech
+                        //repair squad
+                        if(proposedWorker != undefined){
+                            for(let i = 0; i < scope.mechRepairSquad.length; i++){
+                                if(proposedWorker.equals(scope.mechRepairSquad[i]) === true){
+                                    isGood = false;
+                                    i = scope.mechRepairSquad.length;
+                                }
+                            }
+                        }
+
+                        if(isGood === true){
+                            scope.mechRepairSquad.push(proposedWorker);
+                            break;
+                        }
+
+                        if(SENTINEL > allWorkers.length){
+                            scope.chatMsg("armyBrain: SENTINEL has been triggered.");
+                            break;
+                        }//Basically if there are no workers to be found, break. Really
+                        //shouldn't happen unless there is a bug somewhere else.
+                    }
+                }
+            }
+            
+            //Orders the repair of mechanical units and makes sure they have
+            //nearby workers for repair operations.
+            if(myMechUnits.length > 0){
+                let unassignedRepairers = [];
+                for(let i = 0; i < scope.mechRepairSquad.length; i++){
+                    unassignedRepairers.push(scope.mechRepairSquad[i]);
+                }//Because of JS magic, if you just use 
+                //let unassignedRepairers = scope.mechRepairSquad, unassignedRepairers will
+                //be an array of references to scope.mechRepairSquad (a shallow copy), kind
+                //of like an array of workers or soldiers or whatever. This means that
+                //if a change is made to unassignedRepairers without using the bit of code
+                //above, it will not only change unassignedRepairers, it will also change
+                //scope.mechRepairSquad.
+
+                //FYI, I spent over 4 hours trying to find this bug, so please appriciate 
+                //that for a moment.
+                
+                let repairOrders = 0;
+                let damagedMechs = [];
+                myMechUnits.forEach(function(mech){
+                    if(mech.getCurrentHP() < mech.getFieldValue("hp")){//if the mech is at less than full health
+                        damagedMechs.push(mech);
+                        let repairer = getClosestTo(unassignedRepairers, {x: mech.getX(), y: mech.getY()});
+                        if(repairer != null){
+                            scope.order("Repair", [repairer], {"unit": mech});
+                            repairOrders++;
+
+                            for(let ii = 0; ii < unassignedRepairers.length; ii++){
+                                if(repairer.equals(unassignedRepairers[ii]) === true){
+                                    unassignedRepairers.splice(ii, 1);
+                                    ii = unassignedRepairers.length + 1;
+                                }
+                            }//Removes the just ordered worker from the pool of
+                            //potential repairers.
+                        }
+                    }//If the unit is damaged, send the nearest squad member to
+                    //repair
+                });
+                if(repairOrders > 0){
+                    if(scope.mechRepairSquad.length - repairOrders > 0){
+                        for(let i = 0; i < scope.mechRepairSquad.length; i++){
+                            let repairer = scope.mechRepairSquad[i];
+                            scope.order("Repair", [repairer], {unit: getClosestTo(damagedMechs, {x: repairer.getX(), y: repairer.getY()})});
+                        }
+                    }
+                }//If there are any leftover workers and there is a damaged mech, go repair it
+
+                let angryMechs = [];
+                
+                myMechUnits.forEach(function(mech){
+                    let order = mech.getCurrentOrderName();
+                    if(order === "AMove" || order === "Attack"){
+                        angryMechs.push(mech);
+                    }
+                });
+                
+                let center = scope.getCenterOfUnits(angryMechs);
+                if(angryMechs.length > 2){
+                    unassignedRepairers.forEach(function(worker){
+                        if(worker != null){
+                            scope.order("Move", [worker], center);
+                        }
+                    })//Sends the mech repair squad with any angry mechanical 
+                    //units for quicker repair. Sends workers to the closest
+                    //mechanical unit near them if they are not repairing.
+                }//Makes sure workers are not pulled for scouting parties
+            }
+        }//end mech-specific stuff
+
+
+        //Targets enemy repairers and commits mining worker genocide
+        let targetThese = scope.getUnits({type: "Worker", order: "Repair", enemyOf: me});
+        targetThese = targetThese.concat(scope.getUnits({type: "Worker", order: "Mine", enemyOf: me}));
+
+        fightingUnits.forEach(function(unit){
+            let idx = getClosestTo(targetThese, {x: unit.getX(), y: unit.getY()}, true);
+            if(idx != null){
+                let worker = targetThese[idx];
+                targetThese.splice(idx, 1);
+                if(distanceFormula(unit.getX(), unit.getY(), worker.getX(), worker.getY()) < 7){
+                    scope.order("Attack", [unit], {unit: worker});
+                }
+            }
+        });
+
+        //If the enemy has priests, panic and produce birbs with invis detection.
+        let enemyPriests = scope.getUnits({type: "Priest", enemyOf: me});
+        if(enemyPriests.length > 0){
+            scope.subMetaPrios["Units"].push("Bird");
+            scope.subMetaPrios["Upgrades"].push("Bird Detection");
+        }
+        
+        //If there are units around the airship, drop the units.
+        if(myUnits["Airship"] != undefined){
+            let targetThese = scope.getUnits({type: "Worker", order: "Mine", enemyOf: me});
+            myUnits["Airship"].forEach(ship =>{
+                let isNearBase = myBuilds["CastleAndFortresses"].some(build => distanceFormula(build.getX(), build.getY(), ship.getX(), ship.getY()) < 10)
+                
+                if(!isNearBase){
+                    //finds the drop troops
+                    let dropTroops = [];
+                    fightingUnits.forEach(unit => {
+                        if(distanceFormula(ship.getX(), ship.getY(), unit.getX(), unit.getY()) < 6){
+                            dropTroops.push(unit);
+                        }
+                    });
+                    
+                    dropTroops.forEach(unit => {
+                        //If the unit is damaged, pull it
+                        if(unit.getCurrentHP() < unit.getFieldValue("hp") * 0.2){
+                            scope.order("Load in", [ship], {unit: unit}, true);
+                        }
+                    })
+                    
+                    dropTroops.forEach(unit => {
+                        let idx = getClosestTo(targetThese, {x: unit.getX(), y: unit.getY()}, true);
+                        if(idx != null){
+                            let worker = targetThese[idx];
+                            targetThese.splice(idx, 1);
+                            if(distanceFormula(unit.getX(), unit.getY(), worker.getX(), worker.getY()) < 7){
+                                scope.order("Attack", [unit], {unit: worker});
+                            }
+                        }
+                    });
+                    
+                    if(dropTroops.length <= 0 && ship.getValue("freeCargo") >= 4){
+                        //If the drop has died or retreated
+                        exfil([ship]);
+                    }else{
+                        let firstUnit = ship.getValue("cargo")[0];
+                        if(firstUnit != undefined && isEnemyAroundBuilding(ship) == true && firstUnit.hp >= firstUnit.type.hp * 0.5){
+                            scope.order("Unload", [ship], {x: ship.getX(), y: ship.getY()});
+                        }
+                    }
+                }
+            });
+            
+            //Every sixty seconds conduct another drop
+            if(scope.myPower > 10 && scope.lastTimeDropped + 60 < time){
+                Army.conductDrop();
+                
+                scope.lastTimeDropped = time;
+            }
+        }
+    }
+
+    /**
+     * Pulls damaged units from the armies
+     */
+    static pullDamaged(){
+        let damaged = [];
+        fightingUnits.forEach(unit => {
+            if(unit.getValue('hp') < unit.getFieldValue('hp') * 0.15){
+                damaged.push(unit);
+            }
+        });
+
+        if(fightingUnits.length > 2 && damaged.length < fightingUnits.length / 2){
+            exfil(damaged);
+        }
+    }
+    
+    static conductDrop(){
+        scope.chatMsg("Reached conductDrop().")
+        if(myUnits["Airship"] == undefined){
+            return;
+        }
+        
+        let troops = fightingUnits.slice();
+        
+        myUnits["Airship"].forEach(airship => {
+            if(!isEnemyAroundBuilding(airship)){
+                let ax = airship.getX();
+                let ay = airship.getY();
+                let cargoSpaceUsed = 0;
+                for(let i = troops.length - 1; i > -1; i--){
+                    let unit = troops[i];
+                    if(distanceFormula(unit.getX(), unit.getY(), ax, ay) < 15){
+                        scope.order("Load in", [airship], {unit: unit});
+                        troops.splice(i, 1);
+                        cargoSpaceUsed += unit.getValue("cargoUse");
+                        if(cargoSpaceUsed >= 10){
+                            i = -1;
+                        }
+                    }
+                }
+            }
+        });
+        //Gets the path from the center of the airships to an enemy's main base, then compresses the path (only the turns remain);
+        let target = scope.getStartLocationForPlayerNumber(getRandomEnemyNr());
+        target.x += Randomizer.nextInt(-2, 6);
+        target.y += Randomizer.nextInt(-2, 6);
+        let path = Grid.compressPath(Grid.findDropPath(scope.getCenterOfUnits(myUnits["Airship"]), target));
+        
+        setTimeout(function(p){
+            //Orders the airships to move their lazy rear ends.
+            for(let i = p.length - 1; i > -1; i--){
+                scope.order("Move", myUnits["Airship"], p[i], true);
+            }
+            
+            scope.chatMsg("Path to be taken: " + path);
+        }, 6000, path);
+    }
+}
+
+/**
+ * A data structure that's basically a 2-D array with benefits.
+ */
+class Grid {
+    /**
+     * Constructs a grid.
+     * 
+     * @param {array} nodes - An array of nodes. Each should be indexed 
+     */
+    static calcedPaths = {};
+    constructor(nodes){
+        this.grid = nodes;//Makes a copy of the nodes
+        nodes.forEach((col, xIdx) => col.forEach((node, yIdx) => {
+            node.xIdx = xIdx;
+            node.yIdx = yIdx;
+        }));//Sets the cost of the nodes depending on if they are blocked or not.
+    }
+
+    findPath(startX, startY, endX, endY, debug = false){
+        this.grid.forEach(col => col.forEach(node => {
+            node.g = 0;
+            node.h = 0;
+            node.f = 0;
+            node.cost == undefined ? node.cost = 0 : null;
+            node.open = true;
+            delete node.parent;
+        }));
+        
+        this.checkThese = [];
+
+        this.startNode = this.getNodeAt(startX, startY);
+        let startBlockValue = this.startNode.blocked;
+        if(startBlockValue > 0){
+            this.startNode.blocked = 0;
+        }
+        //this.startNode.open = false;
+        this.endNode = this.getNodeAt(endX, endY);
+
+        this.calcID = this.startNode.xIdx.toString() + ": " + this.startNode.yIdx.toString() + ": " + this.endNode.xIdx.toString() + ": " + this.endNode.yIdx.toString();
+        if(Grid.calcedPaths[this.calcID] != undefined){
+            return Grid.calcedPaths[this.calcID]
+        }//Searches if the path has already been found.
+
+        this.hMult = 10;
+
+        let leadNode;
+
+        this.checkThese.push(this.startNode);
+        let SENTINEL = 0;
+
+        while(this.checkThese.length > 0){
+            let lowestScore = 99999;
+            let bestNode = null;
+            let idx = null;
+            this.checkThese.forEach((openNode, i) => {
+                if(openNode.blocked == 0 && openNode.f < lowestScore){
+                    lowestScore = openNode.f;
+                    bestNode = openNode;
+                    idx = i;
+                }
+            });
+            let node = bestNode;
+            if(node == null){
+                break;
+            }
+            node.open = false;
+            this.checkThese.splice(idx, 1);
+
+            if(SENTINEL % 5 == 0){
+                if(distanceFormula(node.xIdx, node.yIdx, this.endNode.xIdx, this.endNode.yIdx) > 10){
+                    this.hMult = 11;
+                }else{
+                    this.hMult = 18;
+                }
+                //Adjusts how accurate we want to be. We really don't care if the path the pathfinder choses is
+                //slightly longer than it really should be in the middle as long as it saves some CPU.
+            }
+            SENTINEL++;
+            if(SENTINEL > 10000){
+                break;
+            }
+
+            let neighbors = this.getNeighbors(node);
+            let diagNeighbors = this.getDiagNeighbors(node);
+
+            this.cycleNodes(node, neighbors, 10);
+            this.cycleNodes(node, diagNeighbors, 14.2);
+
+            if(node.x == this.endNode.x && node.y == this.endNode.y){
+                leadNode = node;
+                break;
+                //If we reached the end, break.
+            }
+        }
+
+        let path = [];
+        SENTINEL = 0;
+        while(true){
+            SENTINEL++;
+            if(SENTINEL > 1000){
+                scope.chatMsg("Path tracing took too long!");
+                break;
+            }
+            if(leadNode == undefined || leadNode.parent == undefined){
+                break;
+            }
+            path.push(leadNode.parent);
+            leadNode = leadNode.parent;
+        }
+
+        Grid.calcedPaths[this.calcID] = path;
+        
+        if(startBlockValue > 0){
+            this.startNode.blocked = startBlockValue;
+        }//Changes the block value back.
+
+        return path;
+    }
+
+    /**
+     * Gets the diagonal neighbors of a node.
+     * 
+     * @param {node} node - The center node.
+     * 
+     * @returns {array} - An array of diagonal neighbors.
+     */
+    getDiagNeighbors(node){
+        let returnArr = [];
+
+        
+        (this.getNodeAt(node.xIdx + 1, node.yIdx)?.blocked == 0 && this.getNodeAt(node.xIdx, node.yIdx + 1)?.blocked == 0) == true && returnArr.push(this.getNodeAt(node.xIdx + 1, node.yIdx + 1));
+        (this.getNodeAt(node.xIdx, node.yIdx + 1)?.blocked == 0 && this.getNodeAt(node.xIdx - 1, node.yIdx)?.blocked == 0) == true && returnArr.push(this.getNodeAt(node.xIdx - 1, node.yIdx + 1));
+        (this.getNodeAt(node.xIdx + 1, node.yIdx)?.blocked == 0 && this.getNodeAt(node.xIdx, node.yIdx - 1)?.blocked == 0) == true && returnArr.push(this.getNodeAt(node.xIdx + 1, node.yIdx - 1));
+        (this.getNodeAt(node.xIdx - 1, node.yIdx)?.blocked == 0 && this.getNodeAt(node.xIdx, node.yIdx - 1)?.blocked == 0) == true && returnArr.push(this.getNodeAt(node.xIdx - 1, node.yIdx - 1));
+
+        for(let i = returnArr.length - 1; i > -1; i--){
+            (returnArr[i].blocked == 0 && returnArr[i] == null) ? returnArr.splice(i, 1) : null;
+        }
+
+        return returnArr;
+    }
+
+    /**
+     * A bit of a complex function. 
+     * 
+     * With open neighbor nodes: Basically updates the f score, the g score, and the h score
+     * With closed neighbor nodes: If the the closed neighbor has a lower g score, then the function
+     *  will switch the provided node's parent to the neighboring node.
+     * 
+     * @param {node} node - The center of the cycling.
+     * @param {array} neighbors - An array of neighbors.
+     * @param {number} weight - The cost to go from the node to each neighbor.
+     */
+    cycleNodes(node, neighbors, weight){
+        for(let i = neighbors.length - 1; i > -1; i--){
+            (neighbors[i].f == -1 || neighbors[i].blocked > 0) ? neighbors.splice(i, 1) : null;
+        }
+
+        neighbors.forEach(nNode => {
+            if(nNode.open == true){
+                nNode.g = node.g + weight;
+                nNode.h = this.hMult * octile(Math.abs(nNode.xIdx - this.endNode.xIdx), Math.abs(nNode.yIdx - this.endNode.yIdx));
+                nNode.f = nNode.g + node.h + node.cost;
+
+                
+                this.checkThese.push(nNode);
+                nNode.open = false;
+                nNode.parent = node;
+            }else{
+                if(nNode.g + weight < node.g){
+                    node.parent = nNode;
+                }
+            }
+        });
+    }
+
+    /**
+     * Gets the cardinal direction neighbors (up, down, left, and right).
+     * 
+     * @param {node} node - The node that the neighbors are next to.
+     */
+    getNeighbors(node){
+        let returnArr = [];
+
+        returnArr.push(this.getNodeAt(node.xIdx + 1, node.yIdx));
+        returnArr.push(this.getNodeAt(node.xIdx - 1, node.yIdx));
+        returnArr.push(this.getNodeAt(node.xIdx, node.yIdx + 1));
+        returnArr.push(this.getNodeAt(node.xIdx, node.yIdx - 1));
+
+        for(let i = returnArr.length - 1; i > -1; i--){
+            (returnArr[i] == null || returnArr[i].blocked > 0) ? returnArr.splice(i, 1) : null;
+        }
+
+        return returnArr;
+    }
+
+    /**
+     * Gets the node at a certain xIdx and yIdx.
+     * 
+     * @param {integer} xIdx - The index of the node in the x axis.
+     * @param {integer} yIdx - the index of the node in the y axis.
+     * 
+     * @returns {node} - the node at that position.
+     */
+    getNodeAt(xIdx, yIdx){
+        if(xIdx == null || yIdx == null || this.isInside(xIdx, yIdx) == false){
+            return null;
+        }
+        return this.grid[Math.floor(xIdx)][Math.floor(yIdx)];
+    }
+
+    /**
+     * If the provided coordinates are inside of the grid.
+     * 
+     * @param {integer} xIdx - The index of the node in the x axis.
+     * @param {integer} yIdx - the index of the node in the y axis.
+     * 
+     * @returns {boolean} - Whether the coordinates are inside
+     */
+    isInside(xIdx, yIdx){
+        if(xIdx < 0 || xIdx > this.grid.length - 1 || yIdx < 0 || yIdx > this.grid[0].length - 1){
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Compresses a path so that only the turning points are returned.
+     * 
+     * @param {array} path - The path to be compressed.
+     * 
+     * @returns {array} - the compressed path. 
+     */
+    static compressPath(path){
+        let compressed = [];
+        let gs = 0.5;
+        let lastAngle = 10;//An impossible value on purpose. 
+        let lastNode = path[0];
+        path.forEach((node, i) => {
+            let angle = Math.atan2(((node.y + gs) - (lastNode.y + gs)), ((node.x + gs) - (lastNode.x + gs))).toFixed(2);//Rounds to nearest hundreth
+            if(angle != lastAngle){
+                compressed.push({x: lastNode.x + gs, y: lastNode.y + gs});
+            }
+            lastAngle = angle;
+            lastNode = node;
+        });
+        return compressed;
+    }
+    
+    static findDropPath(from, to){
+        let mapNodes = [];
+    
+        let mapLen = scope.getMapWidth();
+        let mapHei = scope.getMapHeight();
+        for(let x = 0; x < mapLen; x++){
+            let col = [];
+            for(let y = 0; y < mapHei; y++){
+                let node = new Node(x, y);
+                node.open = true;
+                col.push(node);
+            }
+            mapNodes.push(col);
+        }
+        let map = new Grid(mapNodes);
+        
+        let pad = 15;
+        
+        //Avoid scary stuff that could shoot down the airship
+        let avoidThese = enemyBuildings.slice();
+        enemyUnits.forEach(unit => (unit.getTypeName() == "Ballista" || unit.getTypeName == "Archer") ? avoidThese.push(unit) : null);
+        
+        avoidThese.forEach(scary => {
+            if(scary.getTypeName() != "Castle"){
+                let maxX = Math.ceil(scary.getX() + 2 + pad);
+                let maxY = Math.ceil(scary.getY() + 2 + pad);
+                let buildX = scary.getX() + 1;
+                let buildY = scary.getY() + 1;
+                for(let x = Math.floor(scary.getX() - pad); x < maxX; x++){
+                    for(let y = Math.floor(scary.getY() - pad); y < maxY; y++){
+                        if(map.isInside(x, y)){
+                            map.getNodeAt(x, y).cost += (pad - distanceFormula(x, y, buildX, buildY)) * 50;
+                        }
+                        //Increase the cost of the node based on how close it is to a building.
+                    }
+                }
+            }
+        });
+        
+        let path = map.findPath(Math.floor(from.x), Math.floor(from.y), Math.floor(to.x), Math.floor(to.y));
+        
+        return path;
+    }
+    
+    static generateMapNodes(){
+        let mapNodes = [];
+    
+        let mapLen = scope.getMapWidth();
+        let mapHei = scope.getMapHeight();
+        for(let x = 0; x < mapLen; x++){
+            let col = [];
+            for(let y = 0; y < mapHei; y++){
+                let node = new Node(x, y);
+                node.open = true;
+                node.heightLevel = scope.getHeightLevel(x, y);
+                node.blocked = scope.c(x, y) == true ? 2 : 0;
+                col.push(node);
+            }
+            mapNodes.push(col);
+        }
+        
+        return new Grid(mapNodes);
+    }
+} 
+
+/**
+ * A node in a grid. 
+ * 
+ * @param {number} x - x-coordinate of the node in the graphics canvas
+ * @param {number} y - y-coordinate of the node in the graphics canvas
+ * @param {number} blocked - What block state the node is in. Defaults to UNBLOCKED.
+ */
+class Node {
+    constructor(x, y, blocked = 0){
+        this.blocked = blocked;
+        this.x = x;
+        this.y = y;
+        this.cost = 0;
+    }
+}
+
 if(time > 1){
     Us.update();
 }
+
 if(scope.bases.length <= 0){
-    var startLoc = scope.getStartLocationForPlayerNumber(me);
+    let startLoc = scope.getStartLocationForPlayerNumber(me);
     if(startLoc == undefined && scope.firstCastle != undefined){
         startLoc = {x: scope.firstCastle.getX(), y: scope.firstCastle.getY()};
         //Sometimes because of LWG magic, startLocation will return undefined. In that case,
         //the bot will default to the first castle's coordinates.
     }
     if(typeof startLoc === "object"){
-        var base = new Base(startLoc.x + 2, startLoc.y + 2);
+        let base = new Base(startLoc.x + 2, startLoc.y + 2);
     }
+}
+
+/**
+ * Distance formula.
+ * 
+ * @param x1 {number} - first x coordinate
+ * @param y1 {number} - first y coordinate 
+ * @param x2 {number} - second x coordinate
+ * @param y2 {number} - second y coordinate
+ * @returns {number} - the distance between the two sets of coordinates, unrounded.
+ */
+
+function distanceFormula(x1, y1, x2, y2){
+    return Math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+}
+
+/**
+ * Not square-rooted distance formula.
+ * 
+ * @param x1 {number} - first x coordinate
+ * @param y1 {number} - first y coordinate 
+ * @param x2 {number} - second x coordinate
+ * @param y2 {number} - second y coordinate
+ * @returns {number} - the distance between the two sets of coordinates, unsquarooted.
+ */
+function unsqrtDist(x1, y1, x2, y2){
+    return (x2 - x1)**2 + (y2 - y1)**2;
 }
 
 /**
@@ -2738,6 +4155,22 @@ function kite(units, delay = 1000){
 }
 
 /**
+ * Unlike kiting, this won't send the units back to the base. Instead, it will cause the units to randomly
+ * move.
+ * 
+ * @param {array} units - an array of units.
+ * @param {number} delay - the delay before the units return.
+ */
+function stutterStep(units, delay){
+    let moveX = Randomizer.nextInt(-5, 5);
+    let moveY = Randomizer.nextInt(-5, 5);
+    units.forEach(function(unit){
+        scope.order("Move", [unit], {x: unit.getX() + moveX, y: unit.getY() + moveY});
+    });
+    setTimeout(attackWith, delay, units);
+}
+
+/**
  * A special function for special attacks, such as worker rushes, that don't
  * use the normal fighting units. Overrides other orders. Will throw an error
  *  if not passed an array.
@@ -2748,17 +4181,8 @@ function attackWith(units){
     if(typeof units != "object" || units.length == undefined){
         throw new TypeError("attackWith: You must pass a valid array of units! Recived units parameter: " + JSON.stringify(units));
     }
-    var location = Us.getRandAttackLoc();  
+    let location = Us.getRandAttackLoc();  
     scope.order("AMove", units, location);
-}
-
-/**
- * Attacks with all fighting units, whether or not they are idle. Mostly used
- * in setTimeouts, becuase js timeouts can be stupid finicky when it comes to
- * function references.
-*/
-function allAttack(){
-    Us.allAttack();
 }
 
 /**
@@ -2769,13 +4193,13 @@ function allAttack(){
  */
 function botChat(chatThis){
     if(scope.mute === false){
-        var color = getMyColor();
+        let color = getMyColor();
         scope.chatMsg(color + ": " + chatThis); 
     }
 }
 
 function getMyColor(){
-    var color;
+    let color;
     if(me === 1){
 		color = "Red"
 	}
@@ -2797,24 +4221,14 @@ function getMyColor(){
 	return color;
 }
 
-/**
- * Begins a botChat timeout for later. Directly called once,
- * then it will run indefinetly.
- */
-
-function beginBotChat(){
-    //timeout length is between 40 seconds and 20 minutes
-    setTimeout(doBotChat, Randomizer.nextInt(40, 1200) * 1000);
-}
-
-/**
- * Makes the bot say random things. Will also call beginBotChat,
- * meaning calling this directly is not advised.
- */
 function doBotChat(){
-    var chatter = new RandChatter();
+    if(scope.player.isAlive == false){
+        return;
+    }
+    let chatter = new RandChatter();
     chatter.chat();
-    beginBotChat();
+    
+    scope.nextTalkTick += Randomizer.nextInt(10, 1000);
 }
 
 /**
@@ -2825,7 +4239,7 @@ function doBotChat(){
  * 
  */
 function filterDontProducers(){
-    for(var i = myBuilds.combatUnitProducers.length - 1; i > -1; i--){
+    for(let i = myBuilds.combatUnitProducers.length - 1; i > -1; i--){
         if(scope.dontProduceFromThese.has(myBuilds.combatUnitProducers[i].getTypeName()) === true){
             myBuilds.combatUnitProducers.splice(i, 1);
         }
@@ -2833,300 +4247,37 @@ function filterDontProducers(){
 }
 
 /**
- * Does various things to make the bot smarter. Currently, features include:
- * 
- * -Runs away when outmatched
- * -Kiting when not too outmatched
- * -Retreating the worker scout when it is low on health
- * -For mech meta, sending repairers
- * -Targeting workers that are repairing
- */
-function armyBrain(){
-    var opfor = 0;
-    for(var i = 0; i < enemyUnits.length; i++){
-        if(enemyUnits[i] != undefined && enemyUnits[i].getCurrentHP() > 0){
-            var unit = enemyUnits[i];
-            opfor += scope.getPowerOf(unit);
-        }
-    }
-    var myPower = scope.myPower
-    
-    //if the enemy is 25 percent more powerful - run away.
-    //if we are slightly outmatched, have very few units, or
-    //the opponnent has catapults - kite
-    var enemyCatas = [];
-    var catasPresent = false;
-    enemyUnits.forEach(function(e){
-        if(e.getTypeName() === "Catapult"){
-            catasPresent = true;
-            enemyCatas.push(e);
-        }
-    });
-
-    const enemyMeleePercent = enemyMelee.length / enemyFightingUnits.length;
-    const myMeleePercent = myMelee.length / fightingUnits.length;
-    var kiteThreshold = myPower * 1.05;
-    var retreatThreshold = myPower * 1.15;
-    if(scope.underAttack === true){
-        kiteThreshold = myPower * 1.15;
-        retreatThreshold = myPower * 1.45;
-    }//Will more agressively defend than attack
-    
-    if(opfor > 0 && (opfor > kiteThreshold || enemyCatas.length > 0 || enemyUnits.length > 3)){//If the enemy is passes the kiting requirements
-        if(opfor < retreatThreshold || fightingUnits.length <= 3 || (opfor < retreatThreshold && enemyCatas.length > 0)){//If the enemy passes the kiting requirements, otherwise will order a retreat.
-            var kitingUnits = [];
-            var shortKitingUnits = [];
-            
-            var rangeFilter = false;
-            if(catasPresent === true || enemyMeleePercent < 0.6){
-                rangeFilter = true;
-            }//if the unit is not short-ranged or melee(0.2), 
-            //push it into the kiting array. We don't want
-            //the soldiers, wolves, etc. to kite, because
-            //they can stay inside of the cata's minimum
-            //fire envelope if there are catas. If there
-            //are lots of ranged units, melee units 
-            //lose much of their attack potential if
-            //they kite too much.
-
-            var center = scope.getCenterOfUnits(enemyFightingUnits);
-
-            fightingUnits.forEach(function(unit){
-                var isGood = true;
-                var isFar = false;
-                if(rangeFilter === true){
-                    if(unit.getFieldValue("range") < 1){
-                        isGood = false;
-                    }
-                }//If the range filtier is on and the unit is short-ranged,
-                //don't kite.
-
-                if(distanceFormula(center.x, center.y, unit.getX(), unit.getY()) > 7){
-                    isGood = false;
-                    isFar = true;
-                }//If the units are outside of the main melee (such as 
-                //reinforcements), don't kite.
-                if(isGood === true){
-                    kitingUnits.push(unit);
-                }else if(isFar === false){
-                    shortKitingUnits.push(unit);
-                }
-            });
-            
-            kite(kitingUnits, Randomizer.nextInt(1000, 1250));
-            
-            //The melee/short-ranged units get to kite, but just rebound far quicker.
-            if(shortKitingUnits.length > 0){
-                kite(shortKitingUnits, Randomizer.nextInt(250, 450));
-            }
-        }else{
-            //Retreat if outmatched
-            if(scope.trainingModeOn === true && scope.underAttack === false && scope.firstBeatMessageSent == undefined){
-                //Gives encouragement for the player if they beat the first attack.
-                scope.firstBeatMessageSent = true;
-                scope.chatMsg("Nice, you beat my first attack!");
-                setTimeout(function(){
-                    scope.chatMsg("Now, try and counterattack. Because I lost a good chunk of my troops, you should be able to make some good trades or at least gain map control.");
-                }, 4000);
-            }
-            exfil(fightingUnits);
-        }
-    }
-    
-    //Worker scouting
-    if(fightingUnits.length < 1){
-        if(scope.workerScout != undefined){
-            var angryEnemyWorkers = scope.getUnits({type: "Worker", order: "AMove", enemyOf: me});
-            angryEnemyWorkers = angryEnemyWorkers.concat(scope.getUnits({type: "Worker", order: "Attack", enemyOf: me}));
-
-            if(scope.workerScout.getCurrentHP() < scope.workerScout.getFieldValue("hp") * 0.35){
-                exfil([scope.workerScout]);
-                if(scope.trainingModeOn === true){
-                    scope.chatMsg("Congratulations! You beat my worker scout!");
-                }
-                scope.workerScout = undefined;//makes sure the worker doesn't try any funny buisness anymore
-            }else if(scope.workerScout.getCurrentHP() < scope.workerScout.getFieldValue("hp") && angryEnemyWorkers.length > 0){
-                var isClose = false;
-                for(var i = 0; i < angryEnemyWorkers.length; i++){
-                    if(distanceFormula(angryEnemyWorkers[i].getX(), angryEnemyWorkers[i].getY(), scope.workerScout.getX(), scope.workerScout.getY()) < 2){
-                        isClose = true;
-                        break;
-                    }
-                }
-                if(isClose === true){
-                    kite([scope.workerScout]);
-                }
-            }//If there is opposition and the enemy workers are close, kite. If the
-            //worker scout is at less than 35 percent health, retreat back to the
-            //main base so that the bot doesn't lose more income than nessecary.
-        }
-    }else{
-        if(scope.workerScout != undefined && scope.workerScout.getCurrentHP() < scope.workerScout.getFieldValue("hp") * 0.5){
-            if(myBuilds["CastleAndFortresses"].length > 0){
-                scope.order("Move", [scope.workerScout], myBuilds["CastleAndFortresses"][0]);
-            }
-        }
-    }
-    
-    //Does mech-specific stuff
-    if(myMechUnits.length > 0){
-        //finds random workers to add to the mech repair squad and makes sure
-        //they have not already been added to the squad.
-        
-        for(var i = scope.mechRepairSquad.length - 1; i > -1; i--){
-            var worker = scope.mechRepairSquad[i];
-            if(worker == undefined || worker.getValue("hp") <= 8){
-                scope.mechRepairSquad.splice(i, 1);
-            }
-        }
-        
-        
-        //If there are not enough workers in the mech repair squad, add some.
-        if(scope.mechRepairSquad.length < Math.floor(allWorkers.length * scope.mechRepairPercent)){
-            if(scope.getUnits({order: "Mine", type: "Worker", player: me}).length > 0){
-                var SENTINEL = 0;
-                while(true){
-                    SENTINEL++;
-                    var proposedWorker = miningWorkers[Randomizer.nextInt(0, miningWorkers.length - 1)];
-                    var isGood = true;
-                    
-                    //Makes sure that the proposed worker is not already in the mech
-                    //repair squad
-                    if(proposedWorker != undefined){
-                        for(var i = 0; i < scope.mechRepairSquad.length; i++){
-                            if(proposedWorker.equals(scope.mechRepairSquad[i]) === true){
-                                isGood = false;
-                                i = scope.mechRepairSquad.length;
-                            }
-                        }
-                    }
-
-                    if(isGood === true){
-                        scope.mechRepairSquad.push(proposedWorker);
-                        break;
-                    }
-
-                    if(SENTINEL > allWorkers.length){
-                        scope.chatMsg("armyBrain: SENTINEL has been triggered.");
-                        break;
-                    }//Basically if there are no workers to be found, break. Really
-                    //shouldn't happen unless there is a bug somewhere else.
-                }
-            }
-        }
-        
-        //Orders the repair of mechanical units and makes sure they have
-        //nearby workers for repair operations.
-        if(myMechUnits.length > 0){
-            var unassignedRepairers = [];
-            for(var i = 0; i < scope.mechRepairSquad.length; i++){
-                unassignedRepairers.push(scope.mechRepairSquad[i]);
-            }//Because of JS magic, if you just use 
-            //var unassignedRepairers = scope.mechRepairSquad, unassignedRepairers will
-            //be an array of references to scope.mechRepairSquad (a shallow copy), kind
-            //of like an array of workers or soldiers or whatever. This means that
-            //if a change is made to unassignedRepairers without using the bit of code
-            //above, it will not only change unassignedRepairers, it will also change
-            //scope.mechRepairSquad.
-
-            //FYI, I spent over 4 hours trying to find this bug, so please appriciate 
-            //that for a moment.
-            
-            var repairOrders = 0;
-            var damagedMechs = [];
-            myMechUnits.forEach(function(mech){
-                if(mech.getCurrentHP() < mech.getFieldValue("hp")){//if the mech is at less than full health
-                    damagedMechs.push(mech);
-                    var repairer = getClosestTo(unassignedRepairers, {x: mech.getX(), y: mech.getY()});
-                    if(repairer != null){
-                        scope.order("Repair", [repairer], {"unit": mech});
-                        repairOrders++;
-
-                        for(var ii = 0; ii < unassignedRepairers.length; ii++){
-                            if(repairer.equals(unassignedRepairers[ii]) === true){
-                                unassignedRepairers.splice(ii, 1);
-                                ii = unassignedRepairers.length + 1;
-                            }
-                        }//Removes the just ordered worker from the pool of
-                        //potential repairers.
-                    }
-                }//If the unit is damaged, send the nearest squad member to
-                //repair
-            });
-            if(repairOrders > 0){
-                if(scope.mechRepairSquad.length - repairOrders > 0){
-                    for(var i = 0; i < scope.mechRepairSquad.length; i++){
-                        var repairer = scope.mechRepairSquad[i];
-                        scope.order("Repair", [repairer], {unit: getClosestTo(damagedMechs, {x: repairer.getX(), y: repairer.getY()})});
-                    }
-                }
-            }//If there are any leftover workers and there is a damaged mech, go repair it
-            
-            var angryMechs = [];
-            myMechUnits.forEach(function(mech){
-                if(mech.getCurrentOrderName() === "AMove"){
-                    angryMechs.push(mech);
-                }
-            });
-            
-            if(angryMechs.length > 2){
-                unassignedRepairers.forEach(function(worker){
-                    if(worker != null){
-                        var closestMech = getClosestTo(angryMechs, {x: worker.getX(), y: worker.getY()});
-                        scope.order("Moveto", [worker], {unit: closestMech});
-                    }
-                })//Sends the mech repair squad with any angry mechanical 
-                //units for quicker repair. Sends workers to the closest
-                //mechanical unit near them if they are not repairing.
-            }//Makes sure workers are not pulled for scouting parties
-        }
-    }//end mech-specific stuff
-
-
-    //Targets enemy repairers and commits mining worker genocide
-    var targetThese = scope.getUnits({type: "Worker", order: "Repair", enemyOf: me});
-    targetThese = targetThese.concat(scope.getUnits({type: "Worker", order: "Mine", enemyOf: me}));
-    targetThese.forEach(function(worker){
-        var responseUnit = getClosestTo(fightingUnits, {x: worker.getX(), y: worker.getY()});
-        if(responseUnit != null){
-            scope.order("Attack", [responseUnit], {unit: worker});
-        }
-    });
-
-    //If the enemy has priests, panic and produce birbs with invis detection.
-    var enemyPriests = scope.getUnits({type: "Priest", enemyOf: me});
-    if(enemyPriests.length > 0){
-        scope.subMetaPrios["Units"].push("Bird");
-        scope.subMetaPrios["Upgrades"].push("Bird Detection");
-    }
-}
-
-/**
  * Gets the closest unit in an array to a set of coordinates
  * 
  * @param {array} arr - An array of units
  * @param {object} coordinates - An object in the format of {x: x, y: y}
+ * @param {boolean} returnIndex - if set to true, then the function will retun the index of the closest unit in the array.
  * 
  * @returns {element} - the closest unit from the array, null if arr.length is 0
  */
-function getClosestTo(arr, coordinates){
+function getClosestTo(arr, coordinates, returnIndex = false){
     if(typeof coordinates != "object" || typeof coordinates.x != "number" || typeof coordinates.y != "number"){
         throw new TypeError("getClosestTo: You must pass a valid coordinate object! Recived object: " + JSON.stringify(coordinates));
     }
-    var nearestUnit = null;
-    var nearestDist = 99999;
-    arr.forEach(function(unit){
+    let nearestUnit = null;
+    let nearestI = null;
+    let nearestDist = 99999;
+    arr.forEach(function(unit, i){
         if(unit != undefined){
-            var dist = distanceFormula(unit.getX(), unit.getY(), coordinates.x, coordinates.y);
+            let dist = unsqrtDist(unit.getX(), unit.getY(), coordinates.x, coordinates.y);
             if(dist < nearestDist){
                 nearestUnit = unit;
+                nearestI = i;
                 nearestDist = dist;
             }
         }
     });
     
-    
-    return nearestUnit;
+    if(returnIndex === false){
+        return nearestUnit;
+    }else{
+        return nearestI;
+    }
 }
 
 /**
@@ -3146,17 +4297,17 @@ function exfil(units){
     if(units.length <= 0 || scope.canRetreat === false || myBuilds["allBuilds"].length <= 0){
         return;
     }
-    var chatLine;
-    var retreatBuilding;
+    let chatLine;
+    let retreatBuilding;
     const watchtowers = myBuilds["Watchtowers"];
     const castles = myBuilds["CastleAndFortresses"];
-    var center = scope.getCenterOfUnits(units);
+    let center = scope.getCenterOfUnits(units);
     if(watchtowers.length > 0){
-        var nearestWatchtower = null;
-        var nearestDist = 99999;
-        for(var i = 0; i < watchtowers.length; i++){
-            var watchtower = watchtowers[i];
-            var dist = Math.pow((watchtower.getX() + 1.5) - center.x, 2) + Math.pow((watchtower.getY() + 1.5) - center.y, 2);
+        let nearestWatchtower = null;
+        let nearestDist = 99999;
+        for(let i = 0; i < watchtowers.length; i++){
+            let watchtower = watchtowers[i];
+            let dist = Math.pow((watchtower.getX() + 1.5) - center.x, 2) + Math.pow((watchtower.getY() + 1.5) - center.y, 2);
             if(dist < nearestDist){
                 nearestWatchtower = watchtower;
                 nearestDist = dist;
@@ -3169,22 +4320,23 @@ function exfil(units){
         return;
     }
     
-    if(distanceFormula(center.x, center.y, retreatBuilding.getX() + 1, retreatBuilding.getY() + 1) <= 6){
+    if(distanceFormula(center.x, center.y, retreatBuilding.getX() + 2, retreatBuilding.getY() + 2) <= 9){
         return;
     }
     
-    if(scope.mute === false && Randomizer.nextBoolean(0.2) === true){
-        var possibleChat = ["I'm not retreating! I'm just moving rapidly in the opposite direction!",
+    if(scope.mute === false && Randomizer.nextBoolean(0.1) === true){
+        let possibleChat = ["I'm not retreating! I'm just moving rapidly in the opposite direction!",
         "The needs of the few outweigh the needs of the many.", "The needs of the many outweigh the needs of the few.", "The needs of the any outweight the needs of the ew.", "It only becomes running away when you stop shooting/stabbing/otherwise killing back",
         "Dinner time!", "Ahhhhh!", "Nice move", "Hey! Shooting retreating enemies is a war crime, you know? Sheesh.", "Don't we all love running?", "He who retreats lives slightly longer before he is executed for cowardince", "Discretion is the better part of valor.",
-        "Retreat! Ha! We're just rapidly advancing in the opposite direction!", "In this army, it takes more courage to retreat than to advance. Because deserters and retreating troops are execut- SHUT UP, Carl!", "Fall back!", 
+        "Retreat! Ha! We're just rapidly advancing in the opposite direction!", "In this army, it takes more courage to retreat than to advance. Because deserters and retreating troops are execut-", "Fall back!", 
         "Well, we can make our last stand over there just as well as over here.", "Blood makes the grass grow and we make the blood flow!", "I'll get you for this!", "lol", "THIS... IS... LITTLE WAR GAME!!!!", "They're everywhere!", "Uh oh", 
         "All roads lead to Retreat.", "Over there! No, over there! No, over there!", "This is like herding cats", "We came in peace?", "I'll be back!",";)", ":)", ":(", ");", ":0", "Dude... not cool.", "meow", "Don't hurt me!",
-        "Who are you... where do you come from... what do you want to do with your life.", "This is a distracting message.", "GG", "I know what you did", "Ohhh", "I'm sorry", "I have failed", "I'm a disgrace", "Darn...", "Go take a toaster bath",
+        "Who are you... where do you come from... what do you want to do with your life.", "This is a distracting message.", "I know what you did", "Ohhh", "I'm sorry", "I have failed", "I'm a disgrace", "Darn...", "Go take a toaster bath",
         "You're a disgrace", "You disgust me", "A weak attempt.", "Come on, really?", "No way.", "No way!", "Bro...", "Run away!", "Bruh", "Mmm", "Ah", "Ahhh", "Ahhhhhhh", "Ahhhhhhh", "This is unfortunate.", "Your shoes are untied", "Your head is unscrewed",
         "Pathetic.", "I have a surprise fr you...", "Impossible...", "Crap", "Crud", "Dang", "Shoot", "Yeowch", "What the...", "Oh fudge", "fudge", "Fudge fudge fudge", "This is unacceptable.", "I want to speak to the manager", "Ha",
         "Haha", "Hahaha", "haha", "hahahaha", "hah", "huh?", "*cough*", "You're nothing but a bully.", "Sticks and stones may break my bones but you will never hurt me.", "Go to the underworld.", "That's the worst pirate I've ever seen.",
-        "Perhaps I can find new ways to... motivate the troops.", "Retreating is unacceptable.", "Tactical withdrawl is not retreating.", "Desertion is the better part of valor.", "For the motherland!", "Go away", "O rly?"];
+        "Perhaps I can find new ways to... motivate the troops.", "Retreating is unacceptable.", "Tactical withdrawl is not retreating.", "Desertion is the better part of valor.", "For the motherland!", "Go away", "O rly?",
+        "We're not gonna take this!", "A pledge pin?", "Oh you and your uniform", "We've got the right to choose", "This is our life", "It's my life", "Another one bites the dust"];
         chatLine = possibleChat[Randomizer.nextInt(0, possibleChat.length - 1)];
         scope.chatMsg(getMyColor() + ": " + chatLine);
     }
@@ -3205,19 +4357,19 @@ function exfil(units){
  * @returns {boolean} - if the building has enemies around it.
  */
 function isEnemyAroundBuilding(building, radius = 10){
-    for(var i = 0; i < enemyUnits.length; i++){
-        var unit = enemyUnits[i];
+    let centerX;
+    let centerY;
+    if(scope.buildingSizes[building.getTypeName] == undefined){
+        centerX = building.getX();
+        centerY = building.getY();
+    }else{
+        centerX = building.getX() + scope.buildingSizes[building.getTypeName()][0] / 2;
+        centerY = building.getY() + scope.buildingSizes[building.getTypeName()][1] / 2;
+    }
+    for(let i = 0; i < enemyUnits.length; i++){
+        let unit = enemyUnits[i];
         
         if(unit != undefined){
-            var centerX;
-            var centerY;
-            if(scope.buildingSizes[building.getTypeName] == undefined){
-                centerX = building.getX();
-                centerY = building.getY();
-            }else{
-                centerX = building.getX() + scope.buildingSizes[building.getTypeName()][0] / 2;
-                centerY = building.getY() + scope.buildingSizes[building.getTypeName()][1] / 2;
-            }
             if(distanceFormula(unit.getX(), unit.getY(), centerX, centerY) < radius){
                 return true;
             }
@@ -3225,19 +4377,44 @@ function isEnemyAroundBuilding(building, radius = 10){
     }
     return false;
 }
+
+function getEnemiesAroundBuilding(building, radius = 10){
+    let centerX;
+    let centerY;
+    let units = [];
+    if(scope.buildingSizes[building.getTypeName] == undefined){
+        centerX = building.getX();
+        centerY = building.getY();
+    }else{
+        centerX = building.getX() + scope.buildingSizes[building.getTypeName()][0] / 2;
+        centerY = building.getY() + scope.buildingSizes[building.getTypeName()][1] / 2;
+    }
+    
+    for(let i = 0; i < enemyUnits.length; i++){
+        let unit = enemyUnits[i];
+        
+        if(unit != undefined){
+            if(distanceFormula(unit.getX(), unit.getY(), centerX, centerY) < radius){
+                units.push(unit);
+            }
+        }
+    }
+    return units;
+}
+
 /**
  * Gets mines that are within 15 units of the center of a castle, exclusive.
  * 
  * @returns {array} - an array of not mined mines
  */
 function getMyMinedMines(){
-    var mines = getMinesWithGold();
-    var minedMines = [];
-    for(var i = 0; i < mines.length; i++){
-        var mine = mines[i];
-        var isUnmined = true;
-        for(var ii = 0; ii < myBuilds["CastleAndFortresses"].length; ii++){
-            var castle = myBuilds["CastleAndFortresses"][ii];
+    let mines = getMinesWithGold();
+    let minedMines = [];
+    for(let i = 0; i < mines.length; i++){
+        let mine = mines[i];
+        let isUnmined = true;
+        for(let ii = 0; ii < myBuilds["CastleAndFortresses"].length; ii++){
+            let castle = myBuilds["CastleAndFortresses"][ii];
             if(Math.ceil(distanceFormula(mine.getX() + 1.5, mine.getY() + 1.5, castle.getX() + 2, castle.getY() + 2)) <= 15){
                 isUnmined = false;
                 //ii = myBuilds["CastleAndFortresses"].length;
@@ -3257,10 +4434,10 @@ function getMyMinedMines(){
  * @returns {array} - An array of not mining workers
  */
 function getNotMiningWorkers(){
-    var notMining = [];
-    for(var i = 0; i < allWorkers.length; i++){
-        var worker = allWorkers[i];
-        var order = worker.getCurrentOrderName();
+    let notMining = [];
+    for(let i = 0; i < allWorkers.length; i++){
+        let worker = allWorkers[i];
+        let order = worker.getCurrentOrderName();
         if(order != "Mine"){
             notMining.push(worker);
         }
@@ -3276,22 +4453,22 @@ function getNotMiningWorkers(){
  */
 
 function getUnminedMines(){
-    var mines = getMinesWithGold();
-    var allCastles = scope.getBuildings({type: "Castle"}).concat(scope.getBuildings({type: "Fortress"}));
+    let mines = getMinesWithGold();
+    let allCastles = scope.getBuildings({type: "Castle"}).concat(scope.getBuildings({type: "Fortress"}));
     
-    var unminedMines = [];
-    var allPlayers = scope.getArrayOfPlayerNumbers();
-    for(var i = 0; i < mines.length; i++){
-        var mine = mines[i];
-        var isUnmined = true;
-        for(var ii = 0; ii < allCastles.length; ii++){
-            var castle = allCastles[ii];
+    let unminedMines = [];
+    let allPlayers = scope.getArrayOfPlayerNumbers();
+    for(let i = 0; i < mines.length; i++){
+        let mine = mines[i];
+        let isUnmined = true;
+        for(let ii = 0; ii < allCastles.length; ii++){
+            let castle = allCastles[ii];
             if(Math.round(distanceFormula(mine.getX() + 1.5, mine.getY() + 1.5, castle.getX() + 2, castle.getY() + 2)) <= 15){
                 isUnmined = false;
                 //ii = allCastles.length;
             }else{
-                for(var player = 0; player < allPlayers.length; player++){
-                    var startLoc = scope.getStartLocationForPlayerNumber(allPlayers[player]);
+                for(let player = 0; player < allPlayers.length; player++){
+                    let startLoc = scope.getStartLocationForPlayerNumber(allPlayers[player]);
                     if(startLoc != undefined && allPlayers[player] != me){
                         if(distanceFormula(mine.getX() + 1.5, mine.getY() + 1.5, startLoc.x, startLoc.y) <= 15){
                             isUnmined = false;
@@ -3315,10 +4492,10 @@ function getUnminedMines(){
  */
 
 function getRandomEnemyNr(){
-    var rand = me;
-    var SENTINEL = 0;
-    var players = scope.getArrayOfPlayerNumbers();
-    var myTeam = scope.getTeamNumber(me);
+    let rand = me;
+    let SENTINEL = 0;
+    let players = scope.getArrayOfPlayerNumbers();
+    let myTeam = scope.getTeamNumber(me);
     
     while(rand == me || scope.getTeamNumber(rand) == myTeam){
         SENTINEL++;
@@ -3373,10 +4550,10 @@ function getRandomEnemyNr(){
 
 function findRandomPrioKey(obj){
     const min = 0.01;//if the number is 0, then it can't be produced
-    var max = 0;
+    let max = 0;
     
-    var chatThis = [];
-    for(var key in obj){
+    let chatThis = [];
+    for(let key in obj){
         max += obj[key];
         if(obj[key] > 0){
             chatThis.push(key + ", " + obj[key]);
@@ -3387,15 +4564,15 @@ function findRandomPrioKey(obj){
         return;
     }//if there is nothing prioritized - return.
     
-    var randomNum = 0;
+    let randomNum = 0;
     while(randomNum === 0){
         randomNum = Math.round((Math.random() * (max - min) + min) * 100) / 100;
     }
-    var lastNum = 0;
+    let lastNum = 0;
     
-    var buildThis;
-    for(var key in obj){
-        var cur = lastNum + obj[key]
+    let buildThis;
+    for(let key in obj){
+        let cur = lastNum + obj[key]
         if(randomNum <= cur && cur > lastNum){
             buildThis = key;
             break;
@@ -3426,22 +4603,30 @@ function getMinesWithGold(){
  * but by default the function will train as many as the bot currently has resources for.
  * 
  * @param {string} unit - The string typeName of whatever unit should be trained.
- * @param {number} amount - Optional. How many units should be trained
+ * @param {number} amount - Optional. How many units should be trained. Defaults to Infinity.
+ * @param {boolean} singleProduction - If the unit should only be trained in buildings that aren't currently
+ *  producing anything. Defaults to true.
+ * 
+ * @returns {integer} - The amount of units trained
  */
-function trainUnit(unit, amount = Infinity){
-    var productionBuildings = myBuilds[scope.unitProducedAt[unit]];
+function trainUnit(unit, amount = Infinity, singleProduction = true){
+    let productionBuildings = myBuilds[scope.unitProducedAt[unit]];
     
     if(productionBuildings == undefined){
         throw new TypeError("unit " + unit + " does not have a production building listed.");
     }else if(productionBuildings.length <= 0){
         //scope.chatMsg("unit " + unit + " does not have enough production buildings.");
-        return;
+        return 0;
     }
+    let id_name = unit.toLowerCase().replace(" ", "");
+    let costPerUnit = scope.getTypeFieldValue(id_name, "cost");
+    let curCost = 0;
     
-    for(var i = 0; i < productionBuildings.length; i++){
-        if(productionBuildings[i].getUnitTypeNameInProductionQueAt(1) == undefined){
-            if(i >= amount){
-                break;
+    for(let i = 0; i < productionBuildings.length; i++){
+        if(singleProduction == false || productionBuildings[i].getUnitTypeNameInProductionQueAt(1) == undefined){
+            curCost += costPerUnit;
+            if(curCost > gold || i >= amount){
+                return i;
             }
             if(unit === "Ballista" || unit === "Airship" || unit === "Catapult" || unit === "Gatling Gun" || unit === "Gyrocraft"){
                 scope.order("Construct " + unit, [productionBuildings[i]]);
@@ -3450,7 +4635,19 @@ function trainUnit(unit, amount = Infinity){
             }
         }
     }
+    
+    return Math.round(curCost / costPerUnit);
 }
+
+/*
+scope.chatMsg("*");
+scope.chatMsg(JSON.stringify(scope.getTypeFieldValue("gatlingGun", "cost")));
+scope.chatMsg(JSON.stringify(scope.getTypeFieldValue("gatlinggun", "cost")));
+scope.chatMsg(JSON.stringify(scope.getTypeFieldValue("Gatlinggun", "cost")));
+scope.chatMsg(JSON.stringify(scope.getTypeFieldValue("Gatling Gun", "cost")));
+scope.chatMsg("*");
+*/
+
 
 /**
  * Checks to see if there is any enemy presence around a given spot,
@@ -3464,19 +4661,32 @@ function trainUnit(unit, amount = Infinity){
  * spot, exclusive.
  */
 function isEnemyAroundPosition(x, y, radius = 15){
-    for(var i = 0; i < enemyBuildings.length; i++){
-        const build = enemyBuildings[i];
-        if(distanceFormula(build.getX() + 1, build.getY() + 1, x, y) < radius){
+    enemyBuildings.forEach(build => {
+        if(distanceFormula(build.getX() + 1.5, build.getY() + 1.5, x, y) < radius){
             return true;
         }
-    }
-    for(var i = 0; i < enemyFightingUnits.length; i++){
-        const unit = enemyFightingUnits[i];
-        if(distanceFormula(unit.getX() + 1, unit.getY() + 1, x, y) < radius){
+    });
+            
+    enemyUnits.forEach(unit => {
+        if(distanceFormula(unit.getX(), unit.getY(), x, y) < radius){
             return true;
         }
-    }
+    });
+
     return false;
+}
+
+/**
+ * Gets each mining worker, puts it "in an object along with which mine the worker is mining.
+ * 
+ * @returns {array} - an array of objects with two properties set, "worker" and "mine".
+ */
+function getMiningWorkersWithMines(){
+    let returnThis = [];
+    miningworkers.forEach(worker => {
+        returnThis.push({"worker": worker, "mine": worker.getValue("goldMine")});
+    });
+    return returnThis;
 }
 
 /**
@@ -3537,32 +4747,32 @@ function checkAlongLine(x1, y1, x2, y2, heightComparison, dontCheckThese, checkI
         }
     });
 
-    var cx = x2;
-    var cy = y2;
+    let cx = x2;
+    let cy = y2;
 
     //Two sides of the triangle; opposite and adjacent in the x and y dimensions.
-    var dx = (x1) - (x2);
-    var dy = (y1) - (y2);
+    let dx = (x1) - (x2);
+    let dy = (y1) - (y2);
 
     //Hypotonuse
     const dist = distanceFormula(x1, y1, x2, y2);
     
-    //var coordinates = [];
+    //let coordinates = [];
 
-    //var iterations = 0;
+    //let iterations = 0;
 
-    for(var i = 0; i < dist; i++){
+    for(let i = 0; i < dist; i++){
         //iterations++;
         cx += dx / dist;
         cy += dy / dist;
 
-        var rcx = Math.round(cx);
-        var rcy = Math.round(cy);
+        let rcx = Math.floor(cx);
+        let rcy = Math.floor(cy);
 
         //coordinates.push(" " + JSON.stringify([Math.round(cx), Math.round(cy)]));
 
-        var doCheck = true;
-        for(var ii = 0; ii < dontCheckThese.length; ii++){
+        let doCheck = true;
+        for(let ii = 0; ii < dontCheckThese.length; ii++){
             if(dontCheckThese[ii][0] === rcx && dontCheckThese[ii][1] === rcy){
                 doCheck = false;
                 ii = dontCheckThese.length;
@@ -3579,20 +4789,43 @@ function checkAlongLine(x1, y1, x2, y2, heightComparison, dontCheckThese, checkI
 }
 
 /**
- * Distance formula.
- * 
- * @param x1 {number} - first x coordinate
- * @param y1 {number} - first y coordinate 
- * @param x2 {number} - second x coordinate
- * @param y2 {number} - second y coordinate
- * @returns {number} - the distance between the two sets of coordinates, unrounded.
+ * Generates a unique ID in an object.
  */
-
-function distanceFormula(x1, y1, x2, y2){
-    return Math.sqrt((x2 - x1)*(x2 - x1) + (y2 - y1)*(y2 - y1));
+function generateID(obj){
+    while(true){
+        let propID = Randomizer.nextInt(100000, 999999);
+        if(!obj[propID]){
+            return propID;
+        }
+    }
 }
 
-if(scope.trainingModeOn === true){
+function average(array) {
+    return array.reduce((a, b) => a + b) / array.length;
+}
+
+/**
+ * Returns the octile distance, using coordinates
+ */
+function octileCoords(x1, y1, x2, y2){
+    let dx = Math.abs(x1 - x2);
+    let dy = Math.abs(y1 - y2);
+    const F = Math.SQRT2 - 1;
+    return ((dx < dy) ? F * dx + dy : F * dy + dx);
+}
+
+/**
+ * Returns the octile distance (an approximation of the true distance to a position)
+ * 
+ * @param {number} dx - how far away the position is from the target position, on the x-axis
+ * @param {number} dy - how far away the position is from the target position, on the y-axis
+ */
+function octile(dx, dy){
+    const F = Math.SQRT2 - 1;
+    return ((dx < dy) ? F * dx + dy : F * dy + dx);
+}
+
+if(trainingModeOn === true){
     if(time === 0){
         scope.doChat = false;
         scope.chatMsg("Make a worker, set the castle's waypoint below the goldmine.");
@@ -3623,4 +4856,38 @@ if(scope.trainingModeOn === true){
         scope.justAttacked = false;
         scope.saidAttack = true;
     }
+}
+
+if(time == 2){
+    //scope.chatMsg("We created the garrison!");
+    scope.garrison = new Army([]);
+    scope.allArmiesByID[scope.garrison.armyID].canBeDeleted = false;
+    //scope.chatMsg("After creating, there are " + Object.keys(scope.allArmiesByID).length + " armies.");
+    scope.defenseArmy = new Army([]);
+    scope.allArmiesByID[scope.defenseArmy.armyID].canBeDeleted = false;
+    scope.allArmiesByID[scope.garrison.armyID].mission = "permadefend";//permanent defense
+    scope.defenseArmy.mission = "defend";
+    
+    let mapNodes = [];
+    
+    let mapLen = scope.getMapWidth();
+    let mapHei = scope.getMapHeight();
+    for(let x = 0; x < mapLen; x++){
+        let col = [];
+        for(let y = 0; y < mapHei; y++){
+            let node = new Node(x, y);
+            node.open = true;
+            node.heightLevel = scope.getHeightLevel(x, y);
+            node.blocked = scope.positionIsPathable(x, y) == true ? 2 : 0;
+            col.push(node);
+        }
+        mapNodes.push(col);
+    }
+    
+    scope.mapNodes = new Grid(mapNodes);
+}
+scope.lastNumOfBuildings = myBuilds.allBuilds.length;
+
+if(chatAtEnd.length > 0){
+    scope.chatMsg(JSON.stringify(chatAtEnd).replaceAll(",", ", "));
 }

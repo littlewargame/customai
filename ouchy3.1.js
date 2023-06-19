@@ -1,5 +1,6 @@
 //controller.js
 /* See section labeled ouchy.js */
+scope.chatMsg("ouchy");
 var ai=this;
 ai.DEBUG=false;
 ai.DEBUGONEPLAYER=false;

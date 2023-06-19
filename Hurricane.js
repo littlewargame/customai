@@ -10,7 +10,7 @@
  * Concerns? Complaints? Please refer to the Department of Nobody Cares. And
  * yes, I am the manager.
  */
-
+scope.chatMsg("Hurricane");
 const me = scope.getMyPlayerNumber();
 const time = Math.round(scope.getCurrentGameTimeInSec());
 const gold = scope.getGold();

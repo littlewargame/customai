@@ -3,6 +3,8 @@
 //Its behavior can vary by slight margins dependant on modifiers determined from the start of the gameclock
 //As a result of increased dependancy on RNG - this bot is more versatile, and variable in its behavior
 //Than the current default AI for LWG - although this current iteration still struggles to defeat the current model.
+//
+scope.chatMsg("brutal AI");
 
 //Initialization scope - sets variables for use in behavioural augmentations
 if(!scope.initialized){

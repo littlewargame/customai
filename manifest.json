@@ -1,5 +1,10 @@
 [
     {
+        "name": "Testing AI",
+        "src": "testing.js",
+        "creator": "Tester"
+    },
+    {
         "name": "Malfizars AI",
         "src": "BrutalDefault.js",
         "creator": "BrutalityWarlord (Malfizar)"

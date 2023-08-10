@@ -141,10 +141,7 @@ class Randomizer {
             high = low - 1;
             low = 0;
         }
-        low = Math.floor(low);
-        //let r = new Math.seedrandom(scope.getMyAISeed());
-        let r = Math.random();
-        return low + Math.floor(r * (high - low + 1));
+        return Math.floor(scope.getRandomNumber(low, high));
     };
     /**
      * Get a random float between low to high, inclusive.
@@ -160,7 +157,7 @@ class Randomizer {
             low = 0;
         }
         //return low + (high - low) * new Math.seedrandom(scope.getMyAISeed());
-        return low + (high - low) * Math.random();
+        return scope.getRandomNumber(low * 10000000, high * 10000000) / 10000000;
     };
     /**
      * Generate a random boolean via fair probability coin toss.
@@ -173,7 +170,7 @@ class Randomizer {
             probabilityTrue = 0.5;
         }
         //return new Math.seedrandom(scope.getMyAISeed()) < probabilityTrue;
-        return Math.random() < probabilityTrue;
+        return (scope.getRandomNumber(low * 10000000, high * 10000000) / 10000000) < probabilityTrue;
     };
 }
 
@@ -481,6 +478,8 @@ if(!scope.initailized){
     }else{
         scope.mute = false;
     }
+
+    scope.mute = true;
 
     scope.firstCastle = myBuilds["CastleAndFortresses"][0];
 
@@ -2489,7 +2488,7 @@ class Us {
                         target = {x: enemyTarget.getX(), y: enemyTarget.getY()};
                     }
                     scope.order("Fireball", [mage], target);
-                    if(Randomizer.nextBoolean(0.1)){
+                    if(scope.mute == false && Randomizer.nextBoolean(0.1)){
                         let possibleChat = ["Kaa...meee...haaa...meee...HAAAA", "You.. Shall.. Not... PASSS!", "SPECIAL BEAM CANNON!",
                                             "Now witness the power of this fully armed and operational gas station!", "Now witness the power of this fully armed and operational power substation!",
                                             "If firemen put out fires, then I guess I'm a waterman?", "Eat that!", "Take that!", "Ka-chow!",
@@ -3725,7 +3724,6 @@ class Army {
     }
     
     static conductDrop(){
-        scope.chatMsg("Reached conductDrop().")
         if(myUnits["Airship"] == undefined){
             return;
         }
@@ -3761,8 +3759,6 @@ class Army {
             for(let i = p.length - 1; i > -1; i--){
                 scope.order("Move", myUnits["Airship"], p[i], true);
             }
-            
-            scope.chatMsg("Path to be taken: " + path);
         }, 6000, path);
     }
 }
@@ -3866,8 +3862,7 @@ class Grid {
         SENTINEL = 0;
         while(true){
             SENTINEL++;
-            if(SENTINEL > 1000){
-                scope.chatMsg("Path tracing took too long!");
+            if(SENTINEL > 10000){
                 break;
             }
             if(leadNode == undefined || leadNode.parent == undefined){

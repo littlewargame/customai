@@ -13,5 +13,10 @@
         "name": "Hurricane AI",
         "src": "Hurricane.js",
         "creator": "Mr MeowMeow"
+    },
+    {
+        "name": "Death AI",
+        "src": "Death.js",
+        "creator": "DeathStroke"
     }
 ]

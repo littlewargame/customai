@@ -134,8 +134,7 @@ class Randomizer {
             low = 0;
         }
         low = Math.floor(low);
-        var r = Math.random();
-        return low + Math.floor(r * (high - low + 1));
+        return scope.getRandomNumber(low, high);
     };
     /**
      * Get a random float between low to high, inclusive.
@@ -150,7 +149,7 @@ class Randomizer {
             high = low;
             low = 0;
         }
-        return low + (high - low) * Math.random();
+        return scope.getRandomNumber(low * 1000000000, high * 1000000000) / 1000000000;
     };
     /**
      * Generate a random boolean via fair probability coin toss.
@@ -162,7 +161,7 @@ class Randomizer {
         if(typeof probabilityTrue === "undefined"){
             probabilityTrue = 0.5;
         }
-        return Math.random() < probabilityTrue;
+        return scope.getRandomNumber(0, 1000000000) < probabilityTrue * 1000000000;
     };
 }
 
@@ -438,6 +437,8 @@ if(!scope.initailized){
     }else{
         scope.mute = false;
     }
+
+    scope.mute = true;
 
     scope.firstCastle = myBuilds["CastleAndFortresses"][0];
 
@@ -3389,7 +3390,8 @@ function findRandomPrioKey(obj){
     
     var randomNum = 0;
     while(randomNum === 0){
-        randomNum = Math.round((Math.random() * (max - min) + min) * 100) / 100;
+        //randomNum = Math.round((Math.random() * (max - min) + min) * 100) / 100;
+	randomNum = Randomizer.nextFloat(min, max);
     }
     var lastNum = 0;
     

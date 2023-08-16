@@ -1766,7 +1766,7 @@ class Us {
         if(underAttack === true){
             scope.underAttack = true;
             if(attackingFightingUnits == undefined){
-                scope.chatMsg("attackingFightingUnits is undefined!");
+                console.log("attackingFightingUnits is undefined!");
             }else{
                 var center = scope.getCenterOfUnits(attackingFightingUnits);
                 var responseUnits = [];
@@ -3008,7 +3008,7 @@ function armyBrain(){
                     }
 
                     if(SENTINEL > allWorkers.length){
-                        scope.chatMsg("armyBrain: SENTINEL has been triggered.");
+                	console.log("armyBrain: SENTINEL has been triggered.");
                         break;
                     }//Basically if there are no workers to be found, break. Really
                     //shouldn't happen unless there is a bug somewhere else.
@@ -3324,7 +3324,7 @@ function getRandomEnemyNr(){
     while(rand == me || scope.getTeamNumber(rand) == myTeam){
         SENTINEL++;
         if(SENTINEL > 20){
-            scope.chatMsg("getRandomEnemyNr: SENTINEL has been triggered.");
+            console.log("getRandomEnemyNr: SENTINEL has been triggered.");
             break;
         }
         rand = players[Randomizer.nextInt(0, players.length - 1)];

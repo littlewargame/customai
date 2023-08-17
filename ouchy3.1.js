@@ -50,7 +50,7 @@ if(!ai.log){
     return o1.getX()==o2.getX()&&o1.getY()==o2.getY();
   }
   ai.random=function(max){
-    return Math.floor(Math.random()*(max+1));
+    return scope.getRandomNumber(0, max);
   }
   ai.pick=function(pickarray){
     return pickarray[ai.random(pickarray.length-1)];
@@ -86,7 +86,7 @@ if(!ai.log){
   }
   ai.shuffle=function(array){
     for(var i = array.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
+        var j = scope.getRandomNumber(0, i);
         var temp = array[i];
         array[i] = array[j];
         array[j] = temp;
@@ -743,7 +743,7 @@ if(!ai.BUILDINGUPGRADEORDERPREFIX){
       chances[i]=cheapest/chances[i];//lower cost = higher chance
       totalchance+=chances[i];
     }
-    totalchance=Math.random()*totalchance;
+    totalchance=scope.getRandomNumber(0, 1000) / 1000 * totalchance;
     for(var i=0;i<produce.length;i++){
       totalchance-=chances[i];
       if(totalchance<=0)return produce[i];

@@ -729,7 +729,7 @@ function Scout(width,height, unit,squad){
 
 //Random Number Function - Note: Selection range begins at 0, and ends at max - 1
 function Random(max){
-    return Math.floor(Math.random()*max);
+	return scope.getRandomNumber(0, max - 1);
 }
 
 //same as Random, but also decides if number is positive or negative

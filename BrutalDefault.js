@@ -41,7 +41,7 @@ if(!scope.initialized){
 	console.log("Meta: ", scope.strategy);
 	console.log("------------------");
 
-	scope.chatMsg("I am BrutalAI")
+	//scope.chatMsg("I am BrutalAI")
 
 	scope.attacker = null;
 
@@ -1112,7 +1112,7 @@ function defenseQuips(){
 		identity = "Yellow: "
 	}
 	chatLine = identity + chatChoice[Random(chatChoice.length)];
-	scope.chatMsg(chatLine);
+	//scope.chatMsg(chatLine);
 }
 //Sends a preset message related to Attack
 
@@ -1148,7 +1148,7 @@ function attackQuips(){
 	if (trueEnemy.length < 1){
 		chatChoice = ["You can't hide forever", "I'll find you...", "You could make this easier for both of us if you just surrender"];
 		chatLine = identity + chatChoice[Random(chatChoice.length)];
-		scope.chatMsg(chatLine);
+		//scope.chatMsg(chatLine);
 	}
 }
 
@@ -1181,7 +1181,7 @@ function randomChatter(){
 		identity = "Yellow: "
 	}
 	chatLine = identity + chatChoice[Random(chatChoice.length)];
-	scope.chatMsg(chatLine);
+	//scope.chatMsg(chatLine);
 }
 
 //Deploys a small squad of units to a random building

@@ -1,5 +1,10 @@
 [
     {
+        "name": "Beginner Bot",
+        "src": "BeginnerBot.js",
+        "creator": "DeathStroke"
+    },
+    {
         "name": "Malfizars AI",
         "src": "BrutalDefault.js",
         "creator": "BrutalityWarlord (Malfizar)"

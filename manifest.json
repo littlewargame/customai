@@ -5,11 +5,6 @@
         "creator": "BrutalityWarlord (Malfizar)"
     },
     {
-        "name": "Ouchy AI",
-        "src": "ouchy3.1.js",
-        "creator": "Ouchy"
-    },
-    {
         "name": "Hurricane AI",
         "src": "Hurricane.js",
         "creator": "Mr MeowMeow"

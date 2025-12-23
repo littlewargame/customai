@@ -53,6 +53,8 @@ if(!scope.initialized){
 
 
 
+try {
+
 if(scope.castPrio == true){
 	scope.delay[0] = 150;
 	scope.delay[1] = 180;
@@ -574,8 +576,9 @@ if(patrolCheck == true){
 	
 }
 
-
-
+} catch (e) {
+	console.error("BrutalDefault AI error:", e);
+}
 
 
 

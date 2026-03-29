@@ -732,6 +732,12 @@ function Random(max){
 	return scope.getRandomNumber(0, max - 1);
 }
 
+// Safely get a random element from an array, returns null if empty
+function SafeRandom(arr) {
+	if (!arr || arr.length === 0) return null;
+	return arr[Random(arr.length)];
+}
+
 //same as Random, but also decides if number is positive or negative
 function PosNeg(max){
 	var n = Random(max);
@@ -985,10 +991,8 @@ function Seige(eBuild, army){
 		}
 	}
 	attackQuips();
-	var t = targ[Random(targ.length)];
-	if (!t){
-	}
-	else{
+	var t = SafeRandom(targ);
+	if (t){
 		scope.order("AMove", a ,{x: t.getX(), y: t.getY()});
 	}
 }
@@ -1027,7 +1031,8 @@ function GetDist(obj1, obj2){
 function newCastle(){
 	var nearestDist = 99999;
 	var closeMines = [];//stores an array of mines that are close to the castle
-	var d = deliverSites[Random(deliverSites.length)];
+	var d = SafeRandom(deliverSites);
+	if (!d) return; // No delivery sites available
 	var sel = [];
 	for(var i = 0; i < mines.length; i++){
 		// get nearest goldmine that is not right next to the castle
@@ -1048,9 +1053,10 @@ function newCastle(){
 	}
 	if(castles.length > 0)
 	{
-		if(closeMines.length > 0){
+		var closeMineSel = SafeRandom(closeMines);
+		if(closeMineSel){
 			//If the computer found the next closest gold mine - build next to it
-			sel[0] = closeMines[Random(closeMines.length)];
+			sel[0] = closeMineSel;
 			RandBuild("Castle","Build Castle", workers, 4, sel, 12, 9);
 		}
 		else{
@@ -1064,26 +1070,24 @@ function newCastle(){
 
 function plentiGold(){
 	var closeMines = [];//stores an array of mines that are close to the castle
-	var d = castles[Random(castles.length)];
+	var d = SafeRandom(castles);
+	if (!d) return; // No castles available
 	var rad = 9
 	var sel = [];
-	if(castles.length > 0)
-	{
-		//Cycle through all known active goldmines and find those within a certain distance of the castle.
-		for(var g = 0; g < mines.length; g++){
-			if (GetDist(d, mines[g]) < rad){
-				//Checks if the gold mine is on the same elevation - if it is, add it to array
-				if(scope.getHeightLevel(mines[g].getX(), mines[g].getY()) == scope.getHeightLevel(d.getX(), d.getY())){
-					closeMines.push(mines[g]);
-				}
+	//Cycle through all known active goldmines and find those within a certain distance of the castle.
+	for(var g = 0; g < mines.length; g++){
+		if (GetDist(d, mines[g]) < rad){
+			//Checks if the gold mine is on the same elevation - if it is, add it to array
+			if(scope.getHeightLevel(mines[g].getX(), mines[g].getY()) == scope.getHeightLevel(d.getX(), d.getY())){
+				closeMines.push(mines[g]);
 			}
 		}
-		if(closeMines.length > 2){
-			scope.plentyGold = true;
-		}
-		else{
-			scope.plentyGold = false;
-		}
+	}
+	if(closeMines.length > 2){
+		scope.plentyGold = true;
+	}
+	else{
+		scope.plentyGold = false;
 	}
 }
 
@@ -1187,7 +1191,8 @@ function randomChatter(){
 //Deploys a small squad of units to a random building
 function Patrol(unitArray, buildArray){
 	var patrolSquad =[];
-	var buildChoice = buildArray[Random(buildArray.length)];
+	var buildChoice = SafeRandom(buildArray);
+	if (!buildChoice) return; // No buildings to patrol to
 	if (unitArray.length > 0){
 		for (var sq = 0; sq < 5; sq++){
 			patrolSquad.push(unitArray[Random(unitArray.length)]);
@@ -1198,7 +1203,8 @@ function Patrol(unitArray, buildArray){
 
 //Orders a retreat back to base if an enemy has a larger army than itself
 function Retreat(){
-	var buildChoice = impStruct[Random(impStruct.length)];
+	var buildChoice = SafeRandom(impStruct);
+	if (!buildChoice) return; // No structures to retreat to
 	//If the computer is losing a battle - enter loops
 	if(enemyArmy.length > Army.length ){
 		//Scans each soldier to determine if it is away from base
@@ -1246,7 +1252,8 @@ function ballBuster(){
 		}
 		if(nearEnemies.length > 0 && Mage.length> 0){
 			var mageSel = [];
-			var eSel = nearEnemies[Random(nearEnemies.length)];
+			var eSel = SafeRandom(nearEnemies);
+			if (!eSel) continue; // No valid enemy target
 			mageSel[0] = Mage[m];
 			scope.order("Fireball", mageSel,{x: eSel.getX(), y: eSel.getY()})
 			idlegoFollow(mageSel);
@@ -1267,7 +1274,8 @@ function Flash(){
 		}
 		if(nearEnemies.length > 0 && Raider.length> 0){
 			var raidSel = [];
-			var eSel = nearEnemies[Random(nearEnemies.length)]
+			var eSel = SafeRandom(nearEnemies);
+			if (!eSel) continue; // No valid enemy target
 			raidSel[0] = Raider[r];
 			var modX = PosNeg(5);
 			var modY = PosNeg(5);

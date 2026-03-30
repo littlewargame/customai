@@ -18,5 +18,10 @@
         "name": "Death AI",
         "src": "Death.js",
         "creator": "DeathStroke"
+    },
+    {
+        "name": "Ranger Bot",
+        "src": "RangerBot.js",
+        "creator": "RTSBotDev"
     }
 ]

@@ -20,6 +20,8 @@ var STALL_TIMEOUT = 10;     // seconds without progress before an unfinished bui
 var RETRY_DELAY = 60;       // seconds to wait after a building spot failed a few times
 var MAX_BUILD_TRIES = 3;
 var MAX_SHIFT = 6;          // how far a building may move when its old spot can't be built on
+var CONTESTED_WAIT = 20;    // seconds to wait for a fight at a spot to end before rebuilding anyway
+var HIT_MEMORY = 3;         // seconds an attack on us counts as a threat, even from out of sight
 
 var me = scope.getMyPlayerNumber();
 var now = scope.getCurrentGameTimeInSec();
@@ -49,7 +51,7 @@ if (!scope.campaignAI) {
     var at = b.getBuildPosition();
     state.sites.push({
       typeName: b.getTypeName(), typeId: b.getTypeId(), x: at.x, y: at.y, cx: b.getX(), cy: b.getY(), buildAt: null,
-      buildingId: b.getUnitID(), builderId: null, orderedAt: 0, tries: 0, retryAt: 0, lastHp: 0, lastProgressAt: 0,
+      buildingId: b.getUnitID(), builderId: null, orderedAt: 0, tries: 0, retryAt: 0, lastHp: 0, lastProgressAt: 0, contestedSince: null,
     });
   }
 
@@ -153,7 +155,7 @@ var enemies = scope.getUnits({ enemyOf: me });
 var threats = [];
 for (var i = 0; i < enemies.length; i++) {
   var e = enemies[i];
-  if (e.isNeutral()) {
+  if (e.isNeutral() || e.getEffectiveValue('isInvincible')) {
     continue;
   }
   var near = false;
@@ -165,6 +167,18 @@ for (var i = 0; i < enemies.length; i++) {
   }
   if (near) {
     threats.push(e);
+  }
+}
+
+// Ranged attackers can hit the base from out of sight, so go to where the shots come from
+function spot(x, y) {
+  return { getX: function() { return x; }, getY: function() { return y; } };
+}
+var attacked = myBuildings.concat(myUnits);
+for (var i = 0; i < attacked.length; i++) {
+  var hit = attacked[i].getLastAttack();
+  if (hit && now - hit.time <= HIT_MEMORY) {
+    threats.push(spot(hit.x, hit.y));
   }
 }
 
@@ -242,6 +256,20 @@ for (var i = 0; i < state.sites.length; i++) {
   }
 
   if (now < site.retryAt) {
+    continue;
+  }
+
+  // Wait a while for the fighting to end rather than walk a worker into it
+  var contested = false;
+  for (var j = 0; j < threats.length && !contested; j++) {
+    contested = dist2(site.cx, site.cy, threats[j].getX(), threats[j].getY()) < DEFEND_RANGE * DEFEND_RANGE;
+  }
+  if (!contested) {
+    site.contestedSince = null;
+  } else if (site.contestedSince == null) {
+    site.contestedSince = now;
+  }
+  if (contested && now - site.contestedSince < CONTESTED_WAIT) {
     continue;
   }
 
@@ -354,16 +382,19 @@ for (var i = 0; i < state.posts.length; i++) {
   if (threats.length > 0) {
     var target = null;
     for (var j = 0; j < threats.length; j++) {
-      if (dist2(post.x, post.y, threats[j].getX(), threats[j].getY()) < 4 * DEFEND_RANGE * DEFEND_RANGE &&
-          (!target || dist2(u.getX(), u.getY(), threats[j].getX(), threats[j].getY()) <
-                      dist2(u.getX(), u.getY(), target.getX(), target.getY()))) {
+      if (!target || dist2(u.getX(), u.getY(), threats[j].getX(), threats[j].getY()) <
+                     dist2(u.getX(), u.getY(), target.getX(), target.getY())) {
         target = threats[j];
       }
     }
-    if (target && u.getCurrentOrderName() != 'AMove' && u.getCurrentOrderName() != 'Attack') {
-      order('amove', [ u ], { x: target.getX(), y: target.getY() });
-    }
     if (target) {
+      // Head for the threat unless already fighting, or already on the way to it
+      var fighting = u.getValue('targetUnit') || u.getCurrentOrderName() == 'Attack';
+      var heading = u.getCurrentOrderName() == 'AMove' ? u.getValue('target') : null;
+      var onTheWay = heading && dist2(heading.px, heading.py, target.getX(), target.getY()) < 16;
+      if (!fighting && !onTheWay) {
+        order('amove', [ u ], { x: target.getX(), y: target.getY() });
+      }
       continue;
     }
   }

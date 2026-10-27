@@ -22,6 +22,7 @@ var MAX_BUILD_TRIES = 3;
 var MAX_SHIFT = 6;          // how far a building may move when its old spot can't be built on
 var CONTESTED_WAIT = 20;    // seconds to wait for a fight at a spot to end before rebuilding anyway
 var HIT_MEMORY = 3;         // seconds an attack on us counts as a threat, even from out of sight
+var SEARCH_DISTANCE = 10;   // how far towards an unseen attacker to look, about a catapult's range
 
 var me = scope.getMyPlayerNumber();
 var now = scope.getCurrentGameTimeInSec();
@@ -170,7 +171,7 @@ for (var i = 0; i < enemies.length; i++) {
   }
 }
 
-// Ranged attackers can hit the base from out of sight, so go to where the shots come from
+// Ranged attackers can hit the base from out of sight, so go and look the way the shots came from
 function spot(x, y) {
   return { getX: function() { return x; }, getY: function() { return y; } };
 }
@@ -178,7 +179,7 @@ var attacked = myBuildings.concat(myUnits);
 for (var i = 0; i < attacked.length; i++) {
   var hit = attacked[i].getLastAttack();
   if (hit && now - hit.time <= HIT_MEMORY) {
-    threats.push(spot(hit.x, hit.y));
+    threats.push(spot(hit.x + hit.direction.x * SEARCH_DISTANCE, hit.y + hit.direction.y * SEARCH_DISTANCE));
   }
 }
 

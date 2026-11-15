@@ -91,7 +91,7 @@ var churches = scope.getBuildings({type: "Church", player: me});
 var Dens = scope.getBuildings({type: "Wolves Den", player: me});
 var wereDens = scope.getBuildings({type: "Werewolves Den", player: me});
 var Lairs = scope.getBuildings({type: "Dragons Lair", player: me});
-var Charmer = scope.getBuildings({type: "Snake Charmer", player: me});
+var Charmer = scope.getBuildings({type: "Beast Tamer", player: me});
 var workshops = scope.getBuildings({type: "Workshop", player: me});
 var mills = scope.getBuildings({type: "Mill", player: me});
 var advWkShops = scope.getBuildings({type: "Advanced Workshop", player: me});
@@ -259,10 +259,6 @@ if(busterCheck == true && Mage.length> 0){
 if(flashCheck == true && Raider.length > 0){
 	Flash();
 }
-//calls the function to enable Mage fireball use
-if(invisCheck == true && Priest.length > 0){
-	Invisibility();
-}
 
 //If Comptuers worker count is too small - make more workers
 if (workerCheck == true && time > 70){
@@ -356,9 +352,9 @@ if (workers.length > 0 && time > 5 && scope.goldAlert == false){
 	&& (mills.length < castles.length || mills.length < 1)){
 		RandBuild("Mill","Build Mill", workers, 3, castles, 12, 7);
 	}
-	//Deploys a worker to build a snake charmer
+	//Deploys a worker to build a Beast Tamer
 	if(charmCheck == true && scope.strategy == "Beast" && Charmer.length < 1){
-		RandBuild("Snake Charmer","Build Snake Charmer", workers, 3, castles, 10);
+		RandBuild("Beast Tamer","Build Beast Tamer", workers, 3, castles, 10);
 	}
 	if(lairCheck == true && Lairs.length < 1 && forts.length > 0
 	&& (scope.strategy == "Beast" || scope.strategy == "BeastMech")){
@@ -550,9 +546,6 @@ if (armyCheck == true && scope.plentyGold == false && scope.limit == false){
 if(rshCheck == true){
 	if(guilds.length > 0 && scope.strategy == "Rax"){
 		scope.order("Research Fireball", guilds);
-	}
-	if(churches.length > 0 && scope.strategy == "Skirmishers"){
-		scope.order("Research Invisibility", churches);
 	}
 }
 
@@ -1282,34 +1275,6 @@ function Flash(){
 			//Issues the command to use the flash ability
 			scope.order("Flash", raidSel,{x: eSel.getX() + modX, y: eSel.getY() + modY})
 			idlegoFollow(raidSel);
-		}
-	}
-}
-
-//controls how the Priest will use their invisibilty spell if it exists
-function Invisibility(){
-	var nearEnemies = [];
-	var nearAllies = []
-	for(var p = 0; p < Priest.length; p++){
-		//Scans to detect nearby enemies
-		for(var e = 0; e < enemyUnits.length; e++){
-			if(GetDist(Priest[p], enemyUnits[e]) < 15) {
-				nearEnemies.push(enemyUnits[e]);
-			}
-		}
-		//Scans to detect nearby Allies
-		for(var a = 0; a < Army.length; a++){
-			if(GetDist(Priest[p], Army[a]) < 15) {
-				nearAllies.push(Army[a]);
-			}
-		}
-		if(nearEnemies.length > 0 && Priest.length> 0 && nearAllies.length > 0){
-			var mageSel = []
-			var targ = [];
-			mageSel[0] = Priest[p];
-			targ = nearAllies[Random(nearAllies.length)]
-			scope.order("Invisibility", mageSel,{unit: targ})
-			idlegoFollow(mageSel);
 		}
 	}
 }

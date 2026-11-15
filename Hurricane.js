@@ -107,7 +107,7 @@ let myBuilds = {
     "Workshops": scope.getBuildings({type: "Workshop", player: me}),
     "Advanced Workshops": scope.getBuildings({type: "Advanced Workshop", player: me}),
     "Mills": scope.getBuildings({type: "Mill", player: me}),
-    "Snake Charmers": scope.getBuildings({type: "Snake Charmer", player: me}),
+    "Beast Tamers": scope.getBuildings({type: "Beast Tamer", player: me}),
 }
 myBuilds.combatUnitProducers = myBuilds["Churches"].concat(myBuilds["Wolves Dens"].concat(myBuilds["Dragons Lairs"].concat(myBuilds["Workshops"].concat(myBuilds["Advanced Workshops"].concat(myBuilds["Mills"].concat(myBuilds["Barracks"].concat(myBuilds["Werewolves Dens"])))))));
 let alliedBuilds = scope.getBuildings({team: myTeam});
@@ -831,7 +831,7 @@ if(!scope.initailized){
         "Workshop": [4, 4],
         "Advanced Workshop": [4, 4],
         "Mill": [4, 4],
-        "Snake Charmer": [2, 2],
+        "Beast Tamer": [2, 2],
     }
     
     //Priorities of various buildings. A higher priority means a unit is more likely
@@ -851,7 +851,7 @@ if(!scope.initailized){
         "Workshop": 0,
         "Advanced Workshop": 0,
         "Mill": 0,
-        "Snake Charmer": 0,
+        "Beast Tamer": 0,
     }
     
     //Same thing as above, only with units
@@ -961,19 +961,19 @@ if(!scope.initailized){
         },
         "Beast": {//Beast meta
             "WolfSnakeSpam": {
-                "Buildings": ["Wolves Den", "Snake Charmer"],
+                "Buildings": ["Wolves Den", "Beast Tamer"],
                 "Units": ["Wolf", "Snake"],
                 "Upgrades": ["Animal Testing Lab"],
                 "Misc": {"attackThreshold": 3, "maxProducers": 14, "opener": true},
             },
             "WolfSnakeAndWerewolf": {
-                "Buildings": ["Wolves Den", "Snake Charmer"],
+                "Buildings": ["Wolves Den", "Beast Tamer"],
                 "Units": ["Wolf", "Snake", "Werewolf"],
                 "Upgrades": ["Werewolf Den", "Animal Testing Lab"],
                 "Misc": {"attackThreshold": 2.5, "maxProducers": 14, "opener": false},
             },
             "WolfSnakeAndDragon": {
-                "Buildings": ["Wolves Den", "Snake Charmer", "Dragons Lair"],
+                "Buildings": ["Wolves Den", "Beast Tamer", "Dragons Lair"],
                 "Units": ["Wolf", "Snake", "Dragon"],
                 "Upgrades": ["Fortress", "Animal Testing Lab"],
                 "Misc": {"attackThreshold": 2.5, "maxProducers": 14, "opener": false},
@@ -2850,17 +2850,17 @@ class Us {
                 }
                 scope.buildPrio["Wolves Den"] = wolvesDenPrio;
                 
-                //Snake charmer
+                //Beast Tamer
                 let charmerPrio = 0;
                 //if(subMeta === "WolfSnakeSpam" || subMeta === "WolfSnakeAndWerewolf" || subMeta === "WolfSnakeAndDragon"){
-                if(subPrio["Buildings"].includes("Snake Charmer") === true && subPrio["Buildings"].includes("Snake Charmer") === true){
-                    if(myBuilds["Snake Charmers"].length <= 0 && myBuilds["Wolves Dens"].length > 2 && gold > 100){
+                if(subPrio["Buildings"].includes("Beast Tamer") === true && subPrio["Buildings"].includes("Beast Tamer") === true){
+                    if(myBuilds["Beast Tamers"].length <= 0 && myBuilds["Wolves Dens"].length > 2 && gold > 100){
                         charmerPrio = 1;
                     }else{
                         charmerPrio = 0;
                     }
                 }
-                scope.buildPrio["Snake Charmer"] = charmerPrio;
+                scope.buildPrio["Beast Tamer"] = charmerPrio;
                 
                 
                 //Dragon's lair
@@ -3531,7 +3531,7 @@ class Us {
         if(subPrio["Units"].includes("Wolf") === true && myBuilds["Wolves Dens"].length > 0){
             scope.unitPrio["Wolf"] = 1;
             
-            if(subPrio["Units"].includes("Snake") === true && myBuilds["Snake Charmers"].length > 0 && myUnits["Wolf"] != undefined && myUnits["Wolf"].length >= myBuilds["Wolves Dens"].length){
+            if(subPrio["Units"].includes("Snake") === true && myBuilds["Beast Tamers"].length > 0 && myUnits["Wolf"] != undefined && myUnits["Wolf"].length >= myBuilds["Wolves Dens"].length){
                 if(scope.significantAirThreat === false){
                     scope.unitPrio["Snake"] = 0.5;
                 }else{
@@ -3749,12 +3749,12 @@ class Us {
         
         //Invisibility research
         if(subPrioUpg.includes("Invisibility") === true){
-            if(scope.underAttack === false && (myBuilds["CastleAndFortresses"].length > 1 || scope.startUnminedMines.length <= 0) && myBuilds["Churches"].length > 0){
+            if(scope.underAttack === false && (myBuilds["CastleAndFortresses"].length > 1 || scope.startUnminedMines.length <= 0) && myBuilds["Armories"].length > 0){
                 if(gold >= 100){
-                    let church = myBuilds["Churches"][0];
+                    let armory = myBuilds["Armories"][0];
                     
-                    if(church != undefined){
-                        scope.order("Research Invisibility", [church]);
+                    if(armory != undefined){
+                        scope.order("Research Invisibility", [armory]);
                     }
                 }
             }
@@ -3763,26 +3763,6 @@ class Us {
         //Ballista research
         if(myUnits["Ballista"] != undefined && gold >= 100 && myBuilds["Advanced Workshops"].length > 0){
             scope.order("Ballista Black Powder", [myBuilds["Advanced Workshops"][0]]);
-        }
-
-        //Bird Detection research
-        if(subPrioUpg.includes("Bird Detection") === true){
-            if((myBuilds["CastleAndFortresses"].length > 1 || (scope.startUnminedMines.length <= 0 && myBuilds["CastleAndFortresses"].length > 0))){
-                if(gold >= 100){
-                    let preferredCastle = null;
-                    myBuilds["CastleAndFortresses"].forEach(function(castle){
-                        if(castle.getUnitTypeNameInProductionQueAt(1) == null){
-                            preferredCastle = castle;
-                        }
-                    });
-
-                    if(preferredCastle == null){
-                        preferredCastle = myBuilds["CastleAndFortresses"][0];
-                    }
-
-                    scope.order("Research Bird Detection", [preferredCastle]);
-                }
-            }
         }
 
         //Forge research
@@ -4089,14 +4069,8 @@ class Us {
         if(myUnits["Priest"] != undefined){
             for(let i = 0; i < myUnits["Priest"].length; i++){
                 const priest = myUnits["Priest"][i];
-                let possibleCast = ["Invis", "Heal"];
-                if(scope.getUpgradeLevel("Research Invisibility") <= 0){
-                    possibleCast = ["Heal"];//If we don't have the research for invis, splice it out.
-                }
-                let possible = possibleCast[Randomizer.nextInt(0, possibleCast.length - 1)];
-
-                if((possible === "Heal" && priest.getValue("mana") < 25) || (possible === "Invis" && priest.getValue("mana") < 50)){
-                    continue;//If the mage does not have enough mana for the spell, don't waste CPU resources cacluating useless values
+                if(priest.getValue("mana") < 25){
+                    continue;//If the priest does not have enough mana for the spell, don't waste CPU resources cacluating useless values
                 }
                 let nearAllies = [];
                 //Scans to detect nearby allies
@@ -4109,25 +4083,38 @@ class Us {
                 });
 
                 if(nearAllies.length > 0){
-                    if(possible === "Invis"){
-                        const target = nearAllies[Randomizer.nextInt(0, nearAllies.length - 1)];
-                        scope.order("Invisibility", [priest], {unit: target});
-                    }else{
-                        let damagedUnits = [];
-                        nearAllies.forEach(function(unit){
-                            if(unit.getValue("hp") < unit.getFieldValue("hp")){
-                                damagedUnits.push(unit);
-                            }
-                        });
-                        
-                        if(damagedUnits.length > 1){
-                            scope.order("Summon Healing Ward", [priest], scope.getCenterOfUnits(damagedUnits));
+                    let damagedUnits = [];
+                    nearAllies.forEach(function(unit){
+                        if(unit.getValue("hp") < unit.getFieldValue("hp")){
+                            damagedUnits.push(unit);
                         }
+                    });
+                    
+                    if(damagedUnits.length > 1){
+                        scope.order("Summon Healing Ward", [priest], scope.getCenterOfUnits(damagedUnits));
                     }
                 }
             }
         }//Also based on BrutalityWarlord's code. Also remodeled for efficency
         //and greatness, but mostly for compatibility issues.
+
+        //Raiders go invisible when enemies are close. Invisibility is the Raider's own spell now.
+        if(myUnits["Raider"] != undefined && scope.getUpgradeLevel("Research Invisibility") > 0){
+            for(let i = 0; i < myUnits["Raider"].length; i++){
+                const raider = myUnits["Raider"][i];
+                if(raider.getValue("mana") < 20){
+                    continue;
+                }
+                const raiderX = raider.getX();
+                const raiderY = raider.getY();
+                for(let ii = 0; ii < enemyUnits.length; ii++){
+                    if(distanceFormula(raiderX, raiderY, enemyUnits[ii].getX(), enemyUnits[ii].getY()) < 10){
+                        scope.order("Invisibility", [raider]);
+                        break;
+                    }
+                }
+            }
+        }
 
         //Controls werewolf smash
         if(myUnits["Werewolf"] != undefined){
@@ -6393,7 +6380,6 @@ class Army {
         let enemyPriests = scope.getUnits({type: "Priest", enemyOf: me});
         if(enemyPriests.length > 0){
             scope.subMetaPrios["Units"].push("Bird");
-            scope.subMetaPrios["Upgrades"].push("Bird Detection");
         }
     }
     

@@ -18,5 +18,10 @@
         "name": "Death AI",
         "src": "Death.js",
         "creator": "DeathStroke"
+    },
+    {
+        "name": "Campaign AI",
+        "src": "CampaignAI.js",
+        "creator": "tommy-couzens"
     }
 ]

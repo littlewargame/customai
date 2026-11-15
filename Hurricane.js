@@ -1373,7 +1373,13 @@ class RandBuild {
      */
     findSuitableSpot(){
         //Twists the tryTheseFirst array so that it doesn't always put a castle in the same place
-        this.tryTheseFirst.sort(() => (Randomizer.nextBoolean() ? 1 : -1));
+        // A shuffle that draws the same number of random numbers in every browser, unlike a sort with a random comparator
+        for(let i = this.tryTheseFirst.length - 1; i > 0; i--){
+            let j = Randomizer.nextInt(0, i);
+            let swap = this.tryTheseFirst[i];
+            this.tryTheseFirst[i] = this.tryTheseFirst[j];
+            this.tryTheseFirst[j] = swap;
+        }
         
         this.fails = {"squares": 0,
             "places": 0,
@@ -3863,7 +3869,7 @@ class Us {
             
             
             castleWorkers.sort(function(a, b){
-                return a.length + b.length;
+                return b.length - a.length;
             });//Sorts the castles with the largest population from longest to shortest so
             //that the largest worker lines are drawn from first.
 

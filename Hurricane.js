@@ -107,7 +107,7 @@ let myBuilds = {
     "Workshops": scope.getBuildings({type: "Workshop", player: me}),
     "Advanced Workshops": scope.getBuildings({type: "Advanced Workshop", player: me}),
     "Mills": scope.getBuildings({type: "Mill", player: me}),
-    "Snake Charmers": scope.getBuildings({type: "Snake Charmer", player: me}),
+    "Beast Tamers": scope.getBuildings({type: "Beast Tamer", player: me}),
 }
 myBuilds.combatUnitProducers = myBuilds["Churches"].concat(myBuilds["Wolves Dens"].concat(myBuilds["Dragons Lairs"].concat(myBuilds["Workshops"].concat(myBuilds["Advanced Workshops"].concat(myBuilds["Mills"].concat(myBuilds["Barracks"].concat(myBuilds["Werewolves Dens"])))))));
 let alliedBuilds = scope.getBuildings({team: myTeam});
@@ -831,7 +831,7 @@ if(!scope.initailized){
         "Workshop": [4, 4],
         "Advanced Workshop": [4, 4],
         "Mill": [4, 4],
-        "Snake Charmer": [2, 2],
+        "Beast Tamer": [2, 2],
     }
     
     //Priorities of various buildings. A higher priority means a unit is more likely
@@ -851,7 +851,7 @@ if(!scope.initailized){
         "Workshop": 0,
         "Advanced Workshop": 0,
         "Mill": 0,
-        "Snake Charmer": 0,
+        "Beast Tamer": 0,
     }
     
     //Same thing as above, only with units
@@ -961,19 +961,19 @@ if(!scope.initailized){
         },
         "Beast": {//Beast meta
             "WolfSnakeSpam": {
-                "Buildings": ["Wolves Den", "Snake Charmer"],
+                "Buildings": ["Wolves Den", "Beast Tamer"],
                 "Units": ["Wolf", "Snake"],
                 "Upgrades": ["Animal Testing Lab"],
                 "Misc": {"attackThreshold": 3, "maxProducers": 14, "opener": true},
             },
             "WolfSnakeAndWerewolf": {
-                "Buildings": ["Wolves Den", "Snake Charmer"],
+                "Buildings": ["Wolves Den", "Beast Tamer"],
                 "Units": ["Wolf", "Snake", "Werewolf"],
                 "Upgrades": ["Werewolf Den", "Animal Testing Lab"],
                 "Misc": {"attackThreshold": 2.5, "maxProducers": 14, "opener": false},
             },
             "WolfSnakeAndDragon": {
-                "Buildings": ["Wolves Den", "Snake Charmer", "Dragons Lair"],
+                "Buildings": ["Wolves Den", "Beast Tamer", "Dragons Lair"],
                 "Units": ["Wolf", "Snake", "Dragon"],
                 "Upgrades": ["Fortress", "Animal Testing Lab"],
                 "Misc": {"attackThreshold": 2.5, "maxProducers": 14, "opener": false},
@@ -2850,17 +2850,17 @@ class Us {
                 }
                 scope.buildPrio["Wolves Den"] = wolvesDenPrio;
                 
-                //Snake charmer
+                //Beast Tamer
                 let charmerPrio = 0;
                 //if(subMeta === "WolfSnakeSpam" || subMeta === "WolfSnakeAndWerewolf" || subMeta === "WolfSnakeAndDragon"){
-                if(subPrio["Buildings"].includes("Snake Charmer") === true && subPrio["Buildings"].includes("Snake Charmer") === true){
-                    if(myBuilds["Snake Charmers"].length <= 0 && myBuilds["Wolves Dens"].length > 2 && gold > 100){
+                if(subPrio["Buildings"].includes("Beast Tamer") === true && subPrio["Buildings"].includes("Beast Tamer") === true){
+                    if(myBuilds["Beast Tamers"].length <= 0 && myBuilds["Wolves Dens"].length > 2 && gold > 100){
                         charmerPrio = 1;
                     }else{
                         charmerPrio = 0;
                     }
                 }
-                scope.buildPrio["Snake Charmer"] = charmerPrio;
+                scope.buildPrio["Beast Tamer"] = charmerPrio;
                 
                 
                 //Dragon's lair
@@ -3531,7 +3531,7 @@ class Us {
         if(subPrio["Units"].includes("Wolf") === true && myBuilds["Wolves Dens"].length > 0){
             scope.unitPrio["Wolf"] = 1;
             
-            if(subPrio["Units"].includes("Snake") === true && myBuilds["Snake Charmers"].length > 0 && myUnits["Wolf"] != undefined && myUnits["Wolf"].length >= myBuilds["Wolves Dens"].length){
+            if(subPrio["Units"].includes("Snake") === true && myBuilds["Beast Tamers"].length > 0 && myUnits["Wolf"] != undefined && myUnits["Wolf"].length >= myBuilds["Wolves Dens"].length){
                 if(scope.significantAirThreat === false){
                     scope.unitPrio["Snake"] = 0.5;
                 }else{

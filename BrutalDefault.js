@@ -91,7 +91,7 @@ var churches = scope.getBuildings({type: "Church", player: me});
 var Dens = scope.getBuildings({type: "Wolves Den", player: me});
 var wereDens = scope.getBuildings({type: "Werewolves Den", player: me});
 var Lairs = scope.getBuildings({type: "Dragons Lair", player: me});
-var Charmer = scope.getBuildings({type: "Snake Charmer", player: me});
+var Charmer = scope.getBuildings({type: "Beast Tamer", player: me});
 var workshops = scope.getBuildings({type: "Workshop", player: me});
 var mills = scope.getBuildings({type: "Mill", player: me});
 var advWkShops = scope.getBuildings({type: "Advanced Workshop", player: me});
@@ -356,9 +356,9 @@ if (workers.length > 0 && time > 5 && scope.goldAlert == false){
 	&& (mills.length < castles.length || mills.length < 1)){
 		RandBuild("Mill","Build Mill", workers, 3, castles, 12, 7);
 	}
-	//Deploys a worker to build a snake charmer
+	//Deploys a worker to build a Beast Tamer
 	if(charmCheck == true && scope.strategy == "Beast" && Charmer.length < 1){
-		RandBuild("Snake Charmer","Build Snake Charmer", workers, 3, castles, 10);
+		RandBuild("Beast Tamer","Build Beast Tamer", workers, 3, castles, 10);
 	}
 	if(lairCheck == true && Lairs.length < 1 && forts.length > 0
 	&& (scope.strategy == "Beast" || scope.strategy == "BeastMech")){

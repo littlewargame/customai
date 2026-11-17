@@ -20,6 +20,11 @@
         "creator": "DeathStroke"
     },
     {
+        "name": "Campaign AI",
+        "src": "CampaignAI.js",
+        "creator": "tommy-couzens"
+    },
+    {
         "name": "Ranger Bot",
         "src": "RangerBot.js",
         "creator": "RTSBotDev"

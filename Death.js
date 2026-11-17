@@ -101,9 +101,10 @@ for(var k = 0; k < idleWorkers.length; k++){
         }
     }    
 }
+// The nearest gold mine nobody has started on, or null when there is none left to expand to
+var nearestunMined = null;
 if(Castles.length > 0){
     scope.order("Mine", idleWorkers, {unit: nearestMine});
-    var nearestunMined = null;
     var neasrestunDist = 99999;
     for(var i = 0; i < Mines.length; i++){
     var Mine = Mines[i];
@@ -190,7 +191,7 @@ for(var l = 0; l < Castles.length; l++){
             }
         }
         if(gold > 350){
-            if(Castles.length < 3){
+            if(Castles.length < 3 && nearestunMined){
                 if(randomb === 1){
                     for(let x=-4; x<=4; ++x){
                         for(let y=-4; y<=4; ++y){
@@ -232,7 +233,7 @@ for(var l = 0; l < Castles.length; l++){
                         }
                     }
                 }
-            }else if(Castles.length > 2){
+            }else if(Castles.length > 2 || !nearestunMined){
                 if(Forges.length <= 1){
                     if(spotfound4 === 1){
                         scope.order("Build Forge", miningWorkers, {x: buildlocation4x4x, y: buildlocation4x4y});
@@ -274,7 +275,7 @@ for(var l = 0; l < Castles.length; l++){
             }
         }
         if(gold > 350){
-            if(Castles.length < 3){
+            if(Castles.length < 3 && nearestunMined){
                 if(randomb === 1){
                     for(let x=-4; x<=4; ++x){
                         for(let y=-4; y<=4; ++y){
@@ -316,7 +317,7 @@ for(var l = 0; l < Castles.length; l++){
                         }
                     }
                 }
-            }else if(Castles.length > 2){
+            }else if(Castles.length > 2 || !nearestunMined){
                 if(Labs.length <= 1){
                     if(spotfound4 === 1){
                         scope.order("Build Animal Testing Lab", miningWorkers, {x: buildlocation4x4x, y: buildlocation4x4y});

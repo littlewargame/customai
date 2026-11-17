@@ -1,14 +1,14 @@
-// Macro bot: an economic CPU. Workers non-stop, a Barracks early, a Castle at a second goldmine, and an army that defends first, then attacks.
+// Slammer Bot: three barracks on one base and a big army that wins by numbers, pulling workers into the early fights. It takes a second castle once its base is clear.
 // Every choice is a pure function of the game state (no Math.random, no Date, sorts tie-break on unit id), so every computer plays it identically.
 var me = scope.getMyPlayerNumber();
-var S = scope.macro;
+var S = scope.slammer;
 var byId = function(a, b) { return a.getUnitID() - b.getUnitID(); };
 var dist = function(ax, ay, bx, by) { return Math.sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by)); };
 var now = scope.getCurrentGameTimeInSec();
 var costOf = function(t) { return scope.getTypeFieldValue(t, 'cost'); };
 
 if (!S) {
-  S = scope.macro = {housePending: 0, raxPending: 0, castlePending: 0, nextTrain: 0, wave: {}, enemy: null};
+  S = scope.slammer = {housePending: 0, raxPending: 0, castlePending: 0, nextTrain: 0, wave: {}, enemy: null};
   var players = scope.getArrayOfPlayerNumbers();
   for (var i = 0; i < players.length; i++) {
     if (scope.getTeamNumber(players[i]) !== scope.getMyTeamNumber() && S.enemy === null) { S.enemy = players[i]; }

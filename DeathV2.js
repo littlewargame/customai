@@ -1,5 +1,5 @@
-// Death V2: Death AI's soldiers and archers, played patiently. Workers are spread evenly over every base's goldmine,
-// the army waits until it is big and fights as one, and it walks away when the enemy pulls its workers into a fight.
+// Death V2, Death AI by DeathStroke made stronger: each game it plays soldiers and archers from barracks, or wolves and snakes from wolves dens, played patiently.
+// Workers are spread evenly over every base's goldmine, the army waits until it is big and fights as one, and it walks away when the enemy pulls its workers into a fight.
 // Every choice is a pure function of the game state (randomness only from scope.getRandomNumber, sorts tie-break on unit id), so every computer plays it identically.
 var me = scope.getMyPlayerNumber();
 var S = scope.deathV2;
@@ -18,18 +18,33 @@ if (!S) {
   S.estart = S.enemy === null ? null : scope.getStartLocationForPlayerNumber(S.enemy);
   // the one random draw: how many units the first attack waits for
   S.firstWave = scope.getRandomNumber(16, 20);
+  // the coin flip: barracks with soldiers and archers, or wolves dens with wolves and snakes
+  S.style = scope.getRandomNumber(1, 2) === 2 ? 'wolf' : 'rax';
 }
+var WOLF = S.style === 'wolf';
+var prodName = WOLF ? 'Wolves Den' : 'Barracks', prodId = WOLF ? 'wolvesden' : 'barracks';
 if (!S.estart || !S.start) { return; }
 
-var isArmyType = function(t) { return t === 'Soldier' || t === 'Archer' || t === 'Mage' || t === 'Raider' || t === 'Priest'; };
+var isArmyType = function(t) { return t === 'Soldier' || t === 'Archer' || t === 'Mage' || t === 'Raider' || t === 'Priest' || t === 'Wolf' || t === 'Snake'; };
+// a unit's fighting worth next to a soldier's, from its health and damage; the wolf style weighs armies by it, the barracks style counts units
+var worth = function(u) {
+  var cd = u.getFieldValue('weaponCooldown') || 20, v = Math.sqrt((u.getFieldValue('hp') || 0) * (u.getFieldValue('dmg') || 0) * 20 / cd) / 58.7;
+  return Math.min(3, (u.getFieldValue('range') || 0) >= 2 ? v * 1.15 : v);
+};
+var powerOf = function(list) {
+  if (!WOLF) { return list.length; }
+  var p = 0;
+  for (var i = 0; i < list.length; i++) { p += worth(list[i]); }
+  return p;
+};
 var workers = scope.getUnits({type: 'Worker', player: me}).sort(byId);
 var army = scope.getUnits({player: me, notOfType: 'Worker'}).filter(function(u) { return isArmyType(u.getTypeName()); }).sort(byId);
 var castles = scope.getBuildings({type: 'Castle', player: me}).sort(byId);
 var castlesDone = castles.filter(function(b) { return !b.isUnderConstruction(); });
-var rax = scope.getBuildings({type: 'Barracks', player: me}).sort(byId);
+var rax = scope.getBuildings({type: prodName, player: me}).sort(byId);
 var raxDone = rax.filter(function(b) { return !b.isUnderConstruction(); });
 var houses = scope.getBuildings({type: 'House', player: me}).sort(byId);
-var forges = scope.getBuildings({type: 'Forge', player: me}).sort(byId);
+var forges = scope.getBuildings({type: WOLF ? 'Animal Testing Lab' : 'Forge', player: me}).sort(byId);
 var gold = scope.getGold();
 var supply = scope.getCurrentSupply();
 var maxSupply = scope.getMaxSupply();
@@ -60,14 +75,14 @@ var seenNow = {};
 for (var i = 0; i < enemyArmyVis.length; i++) {
   var u = enemyArmyVis[i];
   seenNow[u.getUnitID()] = true;
-  S.mem[u.getUnitID()] = {x: u.getX(), y: u.getY(), t: now, melee: (u.getFieldValue('range') || 0) < 2};
+  S.mem[u.getUnitID()] = {x: u.getX(), y: u.getY(), t: now, melee: (u.getFieldValue('range') || 0) < 2, v: WOLF ? worth(u) : 1};
 }
 var memIds = Object.keys(S.mem).map(Number).sort(function(a, b) { return a - b; });
 var enemyArmyKnown = 0, enemyMelee = 0;
 for (var i = 0; i < memIds.length; i++) {
   var m = S.mem[memIds[i]];
   if (!seenNow[memIds[i]] && (now - m.t > 90 || scope.canSeeField(Math.floor(m.x), Math.floor(m.y)))) { delete S.mem[memIds[i]]; continue; }
-  enemyArmyKnown++;
+  enemyArmyKnown += m.v || 1;
   if (m.melee) { enemyMelee++; }
 }
 var enemyBuildings = scope.getBuildings({enemyOf: me}).filter(function(b) { return !b.isNeutral() && b.getTypeName() !== 'Goldmine'; }).sort(byId);
@@ -116,9 +131,10 @@ var proxies = enemyBuildings.filter(function(b) { return dist(b.getX(), b.getY()
 var workerById = {};
 for (var i = 0; i < workers.length; i++) { workerById[workers[i].getUnitID()] = workers[i]; }
 var closeThreats = threatAt ? threats.filter(function(u) { return dist(u.getX(), u.getY(), threatAt.getX(), threatAt.getY()) < 18; }) : [];
-var armyNearThreat = threatAt ? army.filter(function(u) { return dist(u.getX(), u.getY(), threatAt.getX(), threatAt.getY()) < 25; }).length : 0;
+var armyNearThreat = threatAt ? powerOf(army.filter(function(u) { return dist(u.getX(), u.getY(), threatAt.getX(), threatAt.getY()) < 25; })) : 0;
+var P = powerOf(army);
 // workers mine on until the enemy is close, then only as many as the fight needs join in (a worker is worth about a third of a soldier)
-var needWorkers = closeThreats.length >= 2 ? Math.ceil((closeThreats.length * 1.4 - armyNearThreat) / 0.33) : 0;
+var needWorkers = closeThreats.length >= 2 ? Math.ceil((powerOf(closeThreats) * 1.4 - armyNearThreat) / 0.33) : 0;
 var dTm = threatAt ? mineNear(threatAt.getX(), threatAt.getY(), 14) : null;
 var holdPt = threatAt ? (dTm ? {x: (threatAt.getX() + dTm.getX()) / 2, y: (threatAt.getY() + dTm.getY()) / 2} : {x: threatAt.getX(), y: threatAt.getY()}) : null;
 var pulledIds = Object.keys(S.pulled).map(Number).sort(function(a, b) { return a - b; });
@@ -243,7 +259,7 @@ var jobIds = Object.keys(S.job).map(Number);
 for (var i = 0; i < jobIds.length; i++) { if (!workerById[jobIds[i]]) { delete S.job[jobIds[i]]; } }
 
 // --- supply and workers
-var houseCost = costOf('house'), workerCost = costOf('worker'), raxCost = costOf('barracks'), castleCost = costOf('castle');
+var houseCost = costOf('house'), workerCost = costOf('worker'), raxCost = costOf(prodId), castleCost = costOf('castle');
 var housesBuilding = houses.filter(function(h) { return h.isUnderConstruction(); }).length;
 var supplyRate = 2 + raxDone.length * 2 + castlesDone.length;
 var needHouse = maxSupply < 150 && supply >= maxSupply - supplyRate * 1.5 && housesBuilding < (maxSupply >= 60 ? 2 : 1);
@@ -253,7 +269,7 @@ var wantWorkers = Math.min(60, Math.max(1, bases.length + castlesBuildingNow) * 
 // early on the army keeps pace with the workers, so the first big attack meets an army
 if (now < 600) { wantWorkers = Math.min(wantWorkers, 12 + Math.round(army.length * 1.2)); }
 // soldiers before workers while a bigger enemy army is about
-if (enemyArmyKnown > army.length + 2 && workers.length >= 12) { wantWorkers = Math.min(wantWorkers, workers.length); }
+if (enemyArmyKnown > P + 2 && workers.length >= 12) { wantWorkers = Math.min(wantWorkers, workers.length); }
 // the opening barracks come before more workers
 var raxFirst = now >= 45 && workers.length >= 9 && rax.length < (now < 80 ? 1 : Math.max(2, Math.round(castlesDone.length * 1.6))) ? raxCost : 0;
 for (var i = 0; i < castlesDone.length; i++) {
@@ -353,7 +369,7 @@ var castlesBuilding = castles.length - castlesDone.length;
 var wantCastles = now < 100 ? 1 : (now < 420 ? 2 : (now < 900 ? 3 : 4));
 wantCastles += lowMines;
 // the first expansion comes early; later ones only with the barracks built and an army to hold them
-var safeToExpand = !threatAt && !proxies.length && enemyArmyKnown <= army.length && (castles.length < 2 || (!raxBehind && army.length >= Math.min(30, enemyArmyKnown)));
+var safeToExpand = !threatAt && !proxies.length && enemyArmyKnown <= P && (castles.length < 2 || (!raxBehind && P >= Math.min(30, enemyArmyKnown)));
 if (freeMine && builder && safeToExpand && castles.length < wantCastles && castlesBuilding === 0 && now - S.castlePending > 30 && gold >= castleCost) {
   var cs = null;
   for (var r = 5; r <= 13 && !cs; r += 1) {
@@ -378,27 +394,27 @@ var saveForCastle = freeMine && safeToExpand && castles.length < wantCastles && 
 
 // --- barracks
 if (builder && rax.length < wantRax && gold >= raxCost && now - S.raxPending > 12 && (!saveForCastle || raxBehind) && !(needHouse && gold < raxCost + houseCost)) {
-  var sp2 = spotNear('barracks', 8);
-  if (sp2) { buildAt('barracks', 'Build Barracks', sp2); gold -= raxCost; S.raxPending = now; }
+  var sp2 = spotNear(prodId, 8);
+  if (sp2) { buildAt(prodId, 'Build ' + prodName, sp2); gold -= raxCost; S.raxPending = now; }
 }
-// a forge once the economy is up, for attack and armour upgrades
-var forgeCost = costOf('forge');
+// a forge (or for beasts an animal testing lab) once the economy is up, for attack and armour upgrades
+var forgeId = WOLF ? 'animaltestinglab' : 'forge', forgeCost = costOf(forgeId);
 if (builder && forges.length === 0 && castlesDone.length >= 2 && rax.length >= 3 && gold >= forgeCost + 100 && now > 480 && now - S.forgePending > 20 && !saveForCastle) {
-  var sp3 = spotNear('forge', 10);
-  if (sp3) { buildAt('forge', 'Build Forge', sp3); gold -= forgeCost; S.forgePending = now; }
+  var sp3 = spotNear(forgeId, 10);
+  if (sp3) { buildAt(forgeId, WOLF ? 'Build Animal Testing Lab' : 'Build Forge', sp3); gold -= forgeCost; S.forgePending = now; }
 }
 for (var i = 0; i < forges.length; i++) {
   var fg = forges[i];
   if (fg.isUnderConstruction() || fg.getUnitTypeNameInProductionQueAt(1)) { continue; }
-  var al = scope.getUpgradeLevel('Attack Upgrade') || 0, ar = scope.getUpgradeLevel('Armor Upgrade') || 0;
+  var al = scope.getUpgradeLevel(WOLF ? 'Beast Attack' : 'Attack Upgrade') || 0, ar = scope.getUpgradeLevel(WOLF ? 'Beast Defense' : 'Armor Upgrade') || 0;
   if (gold >= 250 + 100 * Math.min(al, ar) && army.length >= 10) {
-    scope.order(al <= ar ? 'Attack Upgrade' : 'Armor Upgrade', [fg]);
+    if (WOLF) { scope.order(al <= ar ? 'Beast Attack Upgrade' : 'Beast Defense Upgrade', [fg]); } else { scope.order(al <= ar ? 'Attack Upgrade' : 'Armor Upgrade', [fg]); }
     gold -= 200;
   }
 }
 
 // --- army production: soldiers in front, archers behind
-var soldierCost = costOf('soldier'), archerCost = costOf('archer');
+var soldierCost = costOf(WOLF ? 'wolf' : 'soldier'), archerCost = costOf(WOLF ? 'snake' : 'archer');
 for (var i = 0; i < raxDone.length; i++) {
   var b = raxDone[i];
   if (saveForCastle) { break; }
@@ -407,7 +423,9 @@ for (var i = 0; i < raxDone.length; i++) {
   // three soldiers to two archers, and more soldiers against a melee army like wolves
   var archerSlot = enemyArmyKnown >= 4 && enemyMelee > enemyArmyKnown * 0.7 ? S.nextTrain % 4 === 3 : (S.nextTrain % 5 === 1 || S.nextTrain % 5 === 3);
   var kind = archerSlot ? 'Archer' : 'Soldier';
-  var c = kind === 'Soldier' ? soldierCost : archerCost;
+  // wolves: the first six are wolves, then wolves and snakes in turn
+  if (WOLF) { kind = S.nextTrain >= 6 && S.nextTrain % 2 === 1 ? 'Snake' : 'Wolf'; }
+  var c = kind === 'Soldier' || kind === 'Wolf' ? soldierCost : archerCost;
   // a missing barracks is paid for before more units
   var raxReserve = builder && ((now >= 80 && rax.length < 2) || raxBehind) ? raxCost : 0;
   if (gold >= c + raxReserve && supply + 2 <= maxSupply) { scope.order('Train ' + kind, [b]); gold -= c; supply += 2; S.nextTrain++; }
@@ -440,29 +458,57 @@ if (enemyArmyKnown >= (S.eArmyPeak || 0) || now - (S.eArmyPeakT || 0) > 150) { S
 if (scope.canSeeField(Math.floor(ehX), Math.floor(ehY))) { S.sawMain = now; }
 var clockGuess = now - (S.sawMain || -999) > 90 ? Math.min(24, Math.floor(now / 40)) : 0;
 var eArmyGuess = Math.max(enemyArmyKnown, Math.round((S.eArmyPeak || 0) * 0.7), clockGuess);
+// --- wolf scout: one wolf keeps eyes on the enemy's main and every goldmine, so the pack decides from what is really there
+if (WOLF) {
+  var sWolf = null;
+  for (var i = 0; i < army.length; i++) { if (army[i].getUnitID() === S.wScout) { sWolf = army[i]; } }
+  if (!sWolf && army.length >= 3 && now - (S.wScoutLost || 0) > 25) {
+    var wolvesOnly = army.filter(function(u) { return u.getTypeName() === 'Wolf'; });
+    if (wolvesOnly.length) { sWolf = wolvesOnly[0]; S.wScout = sWolf.getUnitID(); S.wScoutStep = 0; S.wScoutT = 0; }
+  } else if (!sWolf && S.wScout) { S.wScout = null; S.wScoutLost = now; }
+  if (sWolf) {
+    army = army.filter(function(u) { return u.getUnitID() !== S.wScout; });
+    P = powerOf(army);
+    // its round: their main, then each goldmine away from my bases, and round again
+    var route = [S.estart].concat(mines.filter(function(m) { return dist(m.getX(), m.getY(), homeX, homeY) > 25; }).map(function(m) { return {x: m.getX(), y: m.getY()}; }));
+    var stop = route[(S.wScoutStep || 0) % route.length];
+    // it runs from anything that can catch it, back the way it came
+    var chasers = enemyArmyVis.filter(function(u) { return dist(u.getX(), u.getY(), sWolf.getX(), sWolf.getY()) < 7; });
+    if (chasers.length || dist(sWolf.getX(), sWolf.getY(), stop.x, stop.y) < 7 || now - (S.wScoutT || 0) > 45) {
+      S.wScoutStep = (S.wScoutStep || 0) + 1; S.wScoutT = now;
+      stop = route[S.wScoutStep % route.length];
+      var sf = scope.getClosestReachableField(sWolf.getX(), sWolf.getY(), Math.round(stop.x), Math.round(stop.y));
+      if (sf) { scope.order('Move', [sWolf], sf, false); }
+    } else if (sWolf.getCurrentOrderName() !== 'Move') {
+      var sf2 = scope.getClosestReachableField(sWolf.getX(), sWolf.getY(), Math.round(stop.x), Math.round(stop.y));
+      if (sf2) { scope.order('Move', [sWolf], sf2, false); }
+    }
+  }
+}
 var c = centerOf(army);
 if (army.length) {
   // the main group: units near the centre of the army
   var mainGroup = army.filter(function(u) { return dist(u.getX(), u.getY(), c.x, c.y) < 14; });
   var nearEnemy = enemyArmyVis.filter(function(u) { return dist(u.getX(), u.getY(), c.x, c.y) < 16; });
-  var enemyNearArmy = nearEnemy.length;
+  var enemyNearArmy = powerOf(nearEnemy);
   // enemy workers out fighting near my army, not mining
   var workersOut = enemyWorkersVis.filter(function(u) {
     var o = u.getCurrentOrderName();
     return o !== 'Mine' && (o || '').indexOf('Build') !== 0 && o !== 'Repair' && dist(u.getX(), u.getY(), c.x, c.y) < 14;
   }).length;
-  var myPower = army.length;
-  var bigEnough = army.length >= Math.max(S.firstWave, Math.ceil(eArmyGuess * 1.3) + 2) || supply >= 140;
+  var myPower = P;
+  var bigEnough = P >= Math.max(S.firstWave, Math.ceil(eArmyGuess * 1.3) + 2) || supply >= 140;
   // into their main only with enough to beat their army and all their workers together
-  var crushMain = army.length >= (eArmyGuess + eWorkersGuess * 0.35) * 1.5 + 4 || supply >= 146;
+  var crushMain = P >= (eArmyGuess + eWorkersGuess * 0.35) * 1.5 + 4 || supply >= 146;
   var cDistEnemy = dist(c.x, c.y, ehX, ehY);
   var outlying = enemyBuildings.filter(function(b) { return dist(b.getX(), b.getY(), ehX, ehY) > 30; });
+  var raidable = WOLF ? enemyWorkersVis.filter(function(u) { return dist(u.getX(), u.getY(), ehX, ehY) > 25; }) : [];
 
   if (threatAt) {
     setMode('defend');
     // hold beside the workers unless the army wins on its own, so they can join in
     var holdX = holdPt.x, holdY = holdPt.y;
-    if (army.length >= threats.length * 1.4 || closeThreats.length) {
+    if (P >= powerOf(threats) * 1.4 || closeThreats.length) {
       var dc = centerOf(closeThreats.length ? closeThreats : threats);
       scope.order('AMove', army, dc, false);
     } else {
@@ -474,6 +520,66 @@ if (army.length) {
   } else if (proxies.length && army.length >= 6) {
     setMode('defend');
     scope.order('AMove', army, {x: nearest(proxies, homeX, homeY).getX(), y: nearest(proxies, homeX, homeY).getY()}, false);
+  } else if (WOLF) {
+    // the pack: out early to probe, in only where it beats what is actually there, and out again as soon as a fight turns
+    setMode('pack');
+    var towersAt = function(x, y, r) {
+      return enemyBuildings.filter(function(b) { return (b.getTypeName() === 'Watchtower' || b.getTypeName() === 'Tower') && !b.isUnderConstruction() && dist(b.getX(), b.getY(), x, y) < r; }).length;
+    };
+    // what guards a spot: remembered enemy units near it and its towers, each tower worth about two soldiers
+    var guardAt = function(x, y, r) {
+      var g = towersAt(x, y, r) * 2;
+      for (var i = 0; i < memIds.length; i++) { var m = S.mem[memIds[i]]; if (m && dist(m.x, m.y, x, y) < r) { g += m.v || 1; } }
+      return g;
+    };
+    var groupPow = powerOf(mainGroup);
+    var localPow = enemyNearArmy + towersAt(c.x, c.y, 10) * 2 + workersOut * 0.35;
+    // once in a fight it stays while it is about even; it only starts one with a clear edge
+    var losing = localPow > 0 && localPow > groupPow * (S.engaged ? 1.0 : 0.75);
+    if (losing) { S.wBack = now + 8; S.engaged = false; }
+    if (now < (S.wBack || 0)) {
+      var bx = stageX, by = stageY;
+      if (dist(c.x, c.y, bx, by) > 6) { scope.order('Move', army, {x: bx, y: by}, false); }
+    } else if (nearEnemy.length || (workersOut && localPow > 0)) {
+      S.engaged = true;
+      var near0 = nearEnemy.length ? nearest(nearEnemy, c.x, c.y) : null;
+      scope.order('AMove', army, near0 ? {x: near0.getX(), y: near0.getY()} : c, false);
+    } else {
+      S.engaged = false;
+      var tgt = null, best = 1e9;
+      var consider = function(x, y, extra) {
+        // the walk counts a little; a target is only worth it when the pack beats its guard with room to spare
+        if (groupPow < guardAt(x, y, 14) * 1.3 + extra) { return; }
+        var d = dist(c.x, c.y, x, y);
+        if (d < best) { best = d; tgt = {x: x, y: y}; }
+      };
+      // workers at their outlying bases, then outlying buildings, then their army where it stands, then their main
+      for (var i = 0; i < raidable.length; i++) { consider(raidable[i].getX(), raidable[i].getY(), 1); }
+      if (!tgt) { for (var i = 0; i < outlying.length; i++) { consider(outlying[i].getX(), outlying[i].getY(), 2); } }
+      if (!tgt && memIds.length && enemyArmyKnown > 0) {
+        var mx = 0, my = 0, mv = 0;
+        for (var i = 0; i < memIds.length; i++) { var m = S.mem[memIds[i]]; if (m) { mx += m.x * (m.v || 1); my += m.y * (m.v || 1); mv += m.v || 1; } }
+        mx /= mv; my /= mv;
+        // their army near their main has their workers beside it
+        var wk = dist(mx, my, ehX, ehY) < 25 ? eWorkersGuess * 0.35 : 0;
+        if (P >= (enemyArmyKnown + wk) * 1.3 + 1) { tgt = {x: mx, y: my}; }
+      }
+      if (!tgt && crushMain) {
+        if (enemyBuildings.length) { var eb = nearest(enemyBuildings, c.x, c.y); tgt = {x: eb.getX(), y: eb.getY()}; } else { tgt = S.estart; }
+      }
+      if (tgt && mainGroup.length < army.length * 0.6) {
+        // stragglers catch up first
+        var farM = army.filter(function(u) { return dist(u.getX(), u.getY(), c.x, c.y) > 5; });
+        if (farM.length) { scope.order('Move', farM, c, false); }
+      } else if (tgt) {
+        scope.order('AMove', army, tgt, false);
+      } else {
+        // nothing it can win yet: wait outside their worker range if it is not smaller than their army, else at home
+        var w = P >= 4 && P >= eArmyGuess * 0.9 ? S.fwd : {x: stageX, y: stageY};
+        var farW = army.filter(function(u) { return dist(u.getX(), u.getY(), w.x, w.y) > 6; });
+        if (farW.length) { scope.order(w === S.fwd ? 'AMove' : 'Move', farW, w, false); }
+      }
+    }
   } else if (S.mode === 'attack') {
     // pull back when their workers come out, unless I clearly outnumber everything there
     var clearlyAhead = myPower >= (enemyNearArmy + workersOut * 0.4) * 1.6 && myPower >= enemyNearArmy * 2.5;
@@ -481,13 +587,16 @@ if (army.length) {
       setMode('retreat'); S.retreatWorkers = true;
     } else if (enemyNearArmy > myPower * 1.1) {
       setMode('retreat'); S.retreatWorkers = false;
-    } else if (army.length < 6 && enemyArmyKnown > army.length) {
+    } else if (army.length < 6 && enemyArmyKnown > P) {
       setMode('gather');
     } else {
       var tgt = null;
       if (nearEnemy.length && !(cDistEnemy < 30 && !crushMain)) {
         // fight the army in front of me first
         tgt = nearest(nearEnemy, c.x, c.y);
+      } else if (WOLF && raidable.length) {
+        // wolves are fast: hit the workers at their outlying bases, where nothing comes out to help them
+        tgt = nearest(raidable, c.x, c.y);
       } else if (outlying.length) {
         // their outlying buildings: far from their main, their workers do not come out to fight
         tgt = nearest(outlying, c.x, c.y);
@@ -525,7 +634,7 @@ if (army.length) {
       }
     }
   }
-  if (S.mode === 'retreat') {
+  if (!WOLF && S.mode === 'retreat') {
     // walk (not fight) back out of their worker range, then come again once their workers are back mining
     var rx = S.retreatWorkers ? S.fwd.x : stageX, ry = S.retreatWorkers ? S.fwd.y : stageY;
     var atSpot = dist(c.x, c.y, rx, ry) < 7;
@@ -539,7 +648,7 @@ if (army.length) {
     var waited = now - S.modeSince;
     if ((atSpot && waited > 12) || waited > 40) { setMode(army.length >= 6 ? 'attack' : 'gather'); }
   }
-  if (S.mode === 'gather' || S.mode === 'defend') {
+  if (!WOLF && (S.mode === 'gather' || S.mode === 'defend')) {
     if (!threatAt && !(proxies.length && army.length >= 6)) {
       if (bigEnough && mainGroup.length >= army.length * 0.7 && dist(c.x, c.y, stageX, stageY) < 12) {
         setMode('attack');

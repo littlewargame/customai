@@ -25,6 +25,11 @@
         "creator": "tommy-couzens"
     },
     {
+        "name": "Ranger Bot",
+        "src": "RangerBot.js",
+        "creator": "RTSBotDev"
+    },
+    {
         "name": "Slammer Bot",
         "src": "SlammerBot.js",
         "creator": "Aicy"

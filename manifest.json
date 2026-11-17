@@ -22,11 +22,16 @@
     {
         "name": "Campaign AI",
         "src": "CampaignAI.js",
-        "creator": "tommy-couzens"
+        "creator": "Aicy"
     },
     {
         "name": "Ranger Bot",
         "src": "RangerBot.js",
         "creator": "RTSBotDev"
+    },
+    {
+        "name": "Aggro bot",
+        "src": "AggroBot.js",
+        "creator": "Aicy"
     }
 ]

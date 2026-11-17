@@ -25,6 +25,11 @@
         "creator": "tommy-couzens"
     },
     {
+        "name": "Ranger Bot",
+        "src": "RangerBot.js",
+        "creator": "RTSBotDev"
+    },
+    {
         "name": "Death V2",
         "src": "DeathV2.js",
         "creator": "DeathStroke"

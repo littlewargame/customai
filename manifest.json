@@ -30,6 +30,11 @@
         "creator": "RTSBotDev"
     },
     {
+        "name": "Slammer Bot",
+        "src": "SlammerBot.js",
+        "creator": "Aicy"
+    },
+    {
         "name": "Death V2",
         "src": "DeathV2.js",
         "creator": "DeathStroke"

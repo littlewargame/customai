@@ -23,5 +23,10 @@
         "name": "Campaign AI",
         "src": "CampaignAI.js",
         "creator": "tommy-couzens"
+    },
+    {
+        "name": "Death V2",
+        "src": "DeathV2.js",
+        "creator": "Aicy"
     }
 ]

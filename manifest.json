@@ -23,5 +23,10 @@
         "name": "Campaign AI",
         "src": "CampaignAI.js",
         "creator": "tommy-couzens"
+    },
+    {
+        "name": "Macro bot",
+        "src": "MacroBot.js",
+        "creator": "tommy-couzens"
     }
 ]

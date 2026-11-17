@@ -22,11 +22,11 @@
     {
         "name": "Campaign AI",
         "src": "CampaignAI.js",
-        "creator": "tommy-couzens"
+        "creator": "Aicy"
     },
     {
         "name": "Aggro bot",
         "src": "AggroBot.js",
-        "creator": "tommy-couzens"
+        "creator": "Aicy"
     }
 ]

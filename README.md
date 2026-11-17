@@ -10,8 +10,8 @@ The game always loads the latest commit on `main`, so a merged change is live fo
 | Malfizars AI | BrutalityWarlord (Malfizar) |
 | Hurricane AI | Mr MeowMeow |
 | Death AI | DeathStroke |
-| Campaign AI | tommy-couzens |
-| Aggro bot | tommy-couzens |
+| Campaign AI | Aicy |
+| Aggro bot | Aicy |
 
 ## Campaign AI
 

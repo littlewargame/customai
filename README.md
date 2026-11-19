@@ -33,6 +33,6 @@ To use it, open the map editor's Settings, Player Settings, make a slot a comput
 
 An AI is a plain JavaScript file whose body runs about once a second with a `scope` object, documented in the [AI API docs](https://littlewargame.com/play/AI_docs.html). To try one, start a singleplayer game, click Options, Load Custom AI, and pick it for a CPU player.
 
-To publish it, add the file and a line in `manifest.json` (`name`, `src`, `creator`) and open a pull request.
+To publish it, add the file and a line in `manifest.json` (`name`, `src`, `creator`) and open a pull request. Add `"ranked": false` to keep it out of ranked, where it would otherwise be offered as a CPU opponent.
 
 If you use Claude Code, the skills in `.claude/skills/` cover [writing an AI](.claude/skills/writing-custom-ais/SKILL.md) and [building a map](.claude/skills/building-maps/SKILL.md).

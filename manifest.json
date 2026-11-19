@@ -22,12 +22,14 @@
     {
         "name": "Campaign AI",
         "src": "CampaignAI.js",
-        "creator": "tommy-couzens"
+        "creator": "tommy-couzens",
+        "ranked": false
     },
     {
         "name": "Ranger Bot",
         "src": "RangerBot.js",
-        "creator": "RTSBotDev"
+        "creator": "RTSBotDev",
+        "ranked": false
     },
     {
         "name": "Slammer Bot",

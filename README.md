@@ -11,6 +11,9 @@ The game always loads the latest commit on `main`, so a merged change is live fo
 | Hurricane AI | Mr MeowMeow |
 | Death AI | DeathStroke |
 | Campaign AI | tommy-couzens |
+| Ranger Bot | RTSBotDev |
+| Slammer Bot | Aicy |
+| Death V2 | DeathStroke |
 
 ## Campaign AI
 

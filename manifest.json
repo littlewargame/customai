@@ -23,5 +23,20 @@
         "name": "Campaign AI",
         "src": "CampaignAI.js",
         "creator": "tommy-couzens"
+    },
+    {
+        "name": "Ranger Bot",
+        "src": "RangerBot.js",
+        "creator": "RTSBotDev"
+    },
+    {
+        "name": "Slammer Bot",
+        "src": "SlammerBot.js",
+        "creator": "Aicy"
+    },
+    {
+        "name": "Death V2",
+        "src": "DeathV2.js",
+        "creator": "DeathStroke"
     }
 ]

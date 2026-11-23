@@ -14,6 +14,7 @@ The game always loads the latest commit on `main`, so a merged change is live fo
 | Ranger Bot | RTSBotDev |
 | Slammer Bot | Aicy |
 | Death V2 | DeathStroke |
+| Venibot | j-cleary914 |
 
 ## Campaign AI
 

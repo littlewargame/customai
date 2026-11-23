@@ -100,13 +100,22 @@ var mineNear = function(x, y, maxD) {
   }
   return best;
 };
-var bases = [];
+// the closest castle and goldmine pair up first, so a castle between two goldmines still gets the one the other castle left
+var bases = [], pairs = [];
 for (var i = 0; i < castlesDone.length; i++) {
-  var mm = mineNear(castlesDone[i].getX(), castlesDone[i].getY(), 14);
-  if (mm && !bases.some(function(b) { return b.mine.getUnitID() === mm.getUnitID(); })) { bases.push({castle: castlesDone[i], mine: mm}); }
+  for (var k = 0; k < mines.length; k++) {
+    var pd = dist(castlesDone[i].getX(), castlesDone[i].getY(), mines[k].getX(), mines[k].getY());
+    if (mines[k].getValue('gold') > 0 && pd < 14) { pairs.push({castle: castlesDone[i], mine: mines[k], d: pd}); }
+  }
 }
-var mineById = {};
-for (var i = 0; i < bases.length; i++) { mineById[bases[i].mine.getUnitID()] = bases[i]; }
+pairs.sort(function(a, b) { return a.d - b.d || byId(a.castle, b.castle) || byId(a.mine, b.mine); });
+var mineById = {}, baseOfCastle = {};
+for (var i = 0; i < pairs.length; i++) {
+  if (baseOfCastle[pairs[i].castle.getUnitID()] || mineById[pairs[i].mine.getUnitID()]) { continue; }
+  var nb = {castle: pairs[i].castle, mine: pairs[i].mine};
+  bases.push(nb); baseOfCastle[nb.castle.getUnitID()] = nb; mineById[nb.mine.getUnitID()] = nb;
+}
+bases.sort(function(a, b) { return byId(a.castle, b.castle); });
 // a new castle's rally point is its goldmine, so new workers mine at once
 for (var i = 0; i < bases.length; i++) {
   if (!S['rally' + bases[i].castle.getUnitID()]) { scope.order('Moveto', [bases[i].castle], {unit: bases[i].mine}); S['rally' + bases[i].castle.getUnitID()] = true; }
@@ -134,7 +143,7 @@ var closeThreats = threatAt ? threats.filter(function(u) { return dist(u.getX(),
 var armyNearThreat = threatAt ? powerOf(army.filter(function(u) { return dist(u.getX(), u.getY(), threatAt.getX(), threatAt.getY()) < 25; })) : 0;
 var P = powerOf(army);
 // workers mine on until the enemy is close, then only as many as the fight needs join in (a worker is worth about a third of a soldier)
-var needWorkers = closeThreats.length >= 2 ? Math.ceil((powerOf(closeThreats) * 1.4 - armyNearThreat) / 0.33) : 0;
+var needWorkers = closeThreats.length >= 2 ? Math.ceil((powerOf(threats) * 1.4 - armyNearThreat) / 0.33) : 0;
 var dTm = threatAt ? mineNear(threatAt.getX(), threatAt.getY(), 14) : null;
 var holdPt = threatAt ? (dTm ? {x: (threatAt.getX() + dTm.getX()) / 2, y: (threatAt.getY() + dTm.getY()) / 2} : {x: threatAt.getX(), y: threatAt.getY()}) : null;
 var pulledIds = Object.keys(S.pulled).map(Number).sort(function(a, b) { return a - b; });
@@ -262,20 +271,32 @@ for (var i = 0; i < jobIds.length; i++) { if (!workerById[jobIds[i]]) { delete S
 var houseCost = costOf('house'), workerCost = costOf('worker'), raxCost = costOf(prodId), castleCost = costOf('castle');
 var housesBuilding = houses.filter(function(h) { return h.isUnderConstruction(); }).length;
 var supplyRate = 2 + raxDone.length * 2 + castlesDone.length;
-var needHouse = maxSupply < 150 && supply >= maxSupply - supplyRate * 1.5 && housesBuilding < (maxSupply >= 60 ? 2 : 1);
+// the opening trains workers without a break: the first house starts at 8 supply, not before the first worker
+var needHouse = maxSupply < 150 && supply >= maxSupply - (rax.length ? supplyRate * 1.5 : 2) && housesBuilding < (maxSupply >= 60 ? 2 : 1);
 var castlesBuildingNow = castles.length - castlesDone.length;
-// about 9 workers to a goldmine: 4 mine at full speed and the rest cover the walk
-var wantWorkers = Math.min(60, Math.max(1, bases.length + castlesBuildingNow) * 9 + 4);
+// 12 workers to a goldmine: a 13th adds nothing, and its cost is better put towards the next castle
+var wantWorkers = Math.min(60, Math.max(1, bases.length) * 12 + (castlesBuildingNow ? 3 : 0));
 // early on the army keeps pace with the workers, so the first big attack meets an army
 if (now < 600) { wantWorkers = Math.min(wantWorkers, 12 + Math.round(army.length * 1.2)); }
 // soldiers before workers while a bigger enemy army is about
 if (enemyArmyKnown > P + 2 && workers.length >= 12) { wantWorkers = Math.min(wantWorkers, workers.length); }
 // the opening barracks come before more workers
 var raxFirst = now >= 45 && workers.length >= 9 && rax.length < (now < 80 ? 1 : Math.max(2, Math.round(castlesDone.length * 1.6))) ? raxCost : 0;
+// the castle whose goldmine has the fewest workers trains first, so a new base fills up fast
+var crowd = function(c) {
+  var cb = baseOfCastle[c.getUnitID()];
+  return (cb ? counts[cb.mine.getUnitID()] : 50) + (c.getUnitTypeNameInProductionQueAt(1) ? 2 : 0);
+};
+var trainAt = castlesDone.slice().sort(function(a, b) { return crowd(a) - crowd(b) || byId(a, b); });
+// workers already in a castle's queue count, or the last one or two go over what the goldmines can use
+var queued = 0;
 for (var i = 0; i < castlesDone.length; i++) {
-  if (workers.length < wantWorkers && gold >= workerCost + raxFirst && !(needHouse && gold < houseCost + workerCost) && !castlesDone[i].getUnitTypeNameInProductionQueAt(2) && supply + 1 <= maxSupply) {
-    scope.order('Train Worker', [castlesDone[i]]);
-    gold -= workerCost; supply += 1;
+  for (var q = 1; q <= 2; q++) { if (castlesDone[i].getUnitTypeNameInProductionQueAt(q) === 'Worker') { queued++; } }
+}
+for (var i = 0; i < trainAt.length; i++) {
+  if (workers.length + queued < wantWorkers && gold >= workerCost + raxFirst && !(needHouse && rax.length && gold < houseCost + workerCost) && !trainAt[i].getUnitTypeNameInProductionQueAt(2) && supply + 1 <= maxSupply) {
+    scope.order('Train Worker', [trainAt[i]]);
+    gold -= workerCost; supply += 1; queued++;
   }
 }
 
@@ -288,15 +309,30 @@ var nextBuilder = function() { builderIdx++; builder = builderIdx < builders.len
 var awayAng = Math.atan2(homeY - S.estart.y, homeX - S.estart.x);
 var homeMine = mineNear(homeX, homeY, 16);
 // spots start on the side away from the enemy and the goldmine; each retry skips the spot that did not work
+// whether every tile within gap tiles of a building at (x, y) is open ground
+var openAround = function(x, y, size, gap) {
+  for (var tx = x - gap; tx < x + size + gap; tx++) {
+    for (var ty = y - gap; ty < y + size + gap; ty++) {
+      var inside = tx >= x && tx < x + size && ty >= y && ty < y + size;
+      if (!inside && !scope.positionIsPathable(tx, ty)) { return false; }
+    }
+  }
+  return true;
+};
 var spotNear = function(type, rs) {
-  var skip = S.spotTry++ % 6, seen = 0;
-  for (var r = rs; r < rs + 14; r += 2) {
-    for (var a = 0; a < 12; a++) {
-      var ang = awayAng + (a % 2 ? 1 : -1) * Math.ceil(a / 2) * Math.PI / 6;
-      var x = Math.round(homeX + Math.cos(ang) * r), y = Math.round(homeY + Math.sin(ang) * r);
-      if (homeMine && dist(x, y, homeMine.getX(), homeMine.getY()) < 6) { continue; }
-      if (scope.canBuildAt(x, y, type) && scope.isReachable(builder.getX(), builder.getY(), x, y)) {
-        if (seen++ >= skip) { return {x: x, y: y}; }
+  var skip = S.spotTry++ % 6, size = scope.getTypeFieldValue(type, 'size') || 3;
+  // two open tiles all round, so buildings never join up with each other or a cliff into a wall that pens the army in;
+  // a narrower gap only when no such spot is left
+  for (var gap = 2; gap >= 0; gap--) {
+    var seen = 0;
+    for (var r = rs; r < rs + 14; r += 2) {
+      for (var a = 0; a < 12; a++) {
+        var ang = awayAng + (a % 2 ? 1 : -1) * Math.ceil(a / 2) * Math.PI / 6;
+        var x = Math.round(homeX + Math.cos(ang) * r), y = Math.round(homeY + Math.sin(ang) * r);
+        if (homeMine && dist(x, y, homeMine.getX(), homeMine.getY()) < 6) { continue; }
+        if (openAround(x, y, size, gap) && scope.canBuildAt(x, y, type) && scope.isReachable(builder.getX(), builder.getY(), x, y)) {
+          if (seen++ >= skip) { return {x: x, y: y}; }
+        }
       }
     }
   }
@@ -329,15 +365,14 @@ if (builder && gold >= houseCost && needHouse && now - S.housePending > 10) {
 }
 
 // --- expansion: a castle at the nearest free goldmine on my side, early and again as mines run low
-// a walkable tile beside the goldmine, and whether a castle at (x, y) is a short walk from it
-var shortWalkToMine = function(mine, x, y, r) {
+// a walkable tile beside the goldmine, to measure the walk from a castle spot to it
+var sideOfMine = function(mine) {
   var sides = [[3, 0], [-3, 0], [0, 3], [0, -3], [3, 3], [-3, -3], [3, -3], [-3, 3]];
   for (var k = 0; k < sides.length; k++) {
     var sx = Math.round(mine.getX() + sides[k][0]), sy = Math.round(mine.getY() + sides[k][1]);
-    if (!scope.positionIsPathable(sx, sy)) { continue; }
-    if (scope.getGroundDistance(x, y, sx, sy) <= r + 8) { return true; }
+    if (scope.positionIsPathable(sx, sy)) { return {x: sx, y: sy}; }
   }
-  return false;
+  return null;
 };
 var freeMine = null;
 if (home && builder) {
@@ -369,15 +404,25 @@ var castlesBuilding = castles.length - castlesDone.length;
 var wantCastles = now < 100 ? 1 : (now < 420 ? 2 : (now < 900 ? 3 : 4));
 wantCastles += lowMines;
 // the first expansion comes early; later ones only with the barracks built and an army to hold them
-var safeToExpand = !threatAt && !proxies.length && enemyArmyKnown <= P && (castles.length < 2 || (!raxBehind && P >= Math.min(30, enemyArmyKnown)));
+// an enemy army that only hovers outside does not stop an expansion, as long as mine is about its size
+var safeToExpand = !closeThreats.length && !proxies.length && enemyArmyKnown <= P * 1.2 && (castles.length < 2 || (!raxBehind && P >= Math.min(30, enemyArmyKnown)));
 if (freeMine && builder && safeToExpand && castles.length < wantCastles && castlesBuilding === 0 && now - S.castlePending > 30 && gold >= castleCost) {
   var cs = null;
-  for (var r = 5; r <= 13 && !cs; r += 1) {
-    for (var a = 0; a < 24 && !cs; a++) {
-      var ang = a * Math.PI / 12;
-      var x = Math.round(freeMine.getX() + Math.cos(ang) * r), y = Math.round(freeMine.getY() + Math.sin(ang) * r);
-      // the castle must sit on the goldmine's own ground, a short walk from it, or its workers walk around a cliff
-      if (scope.canBuildAt(x, y, 'castle') && scope.isReachable(builder.getX(), builder.getY(), x, y) && shortWalkToMine(freeMine, x, y, r)) { cs = {x: x, y: y}; }
+  if (scope.getClosestBuildSpot) {
+    // the game finds the spot with the shortest walk to the goldmine: on its own ground, straight across from it
+    var gs = scope.getClosestBuildSpot('castle', freeMine, 14);
+    if (gs && scope.isReachable(builder.getX(), builder.getY(), gs.x, gs.y)) { cs = {x: gs.x, y: gs.y}; }
+  } else {
+    // an older game: of the spots around the goldmine, the one with the shortest walk to it, never one across a cliff
+    var side = sideOfMine(freeMine), bestWalk = 12;
+    for (var r = 5; r <= 10 && side; r += 1) {
+      for (var a = 0; a < 24; a++) {
+        var ang = a * Math.PI / 12;
+        var x = Math.round(freeMine.getX() + Math.cos(ang) * r), y = Math.round(freeMine.getY() + Math.sin(ang) * r);
+        if (!scope.canBuildAt(x, y, 'castle') || !scope.isReachable(builder.getX(), builder.getY(), x, y)) { continue; }
+        var gw = scope.getGroundDistance(x + 1, y + 1, side.x, side.y);
+        if (gw > 0 && gw < bestWalk) { bestWalk = gw; cs = {x: x, y: y}; }
+      }
     }
   }
   // no castle fits beside this goldmine (or none my workers can reach): try the next one
@@ -406,7 +451,7 @@ if (builder && forges.length === 0 && castlesDone.length >= 2 && rax.length >= 3
 for (var i = 0; i < forges.length; i++) {
   var fg = forges[i];
   if (fg.isUnderConstruction() || fg.getUnitTypeNameInProductionQueAt(1)) { continue; }
-  var al = scope.getUpgradeLevel(WOLF ? 'Beast Attack' : 'Attack Upgrade') || 0, ar = scope.getUpgradeLevel(WOLF ? 'Beast Defense' : 'Armor Upgrade') || 0;
+  var al = scope.getUpgradeLevel(WOLF ? 'Beast Attack' : 'Damage') || 0, ar = scope.getUpgradeLevel(WOLF ? 'Beast Defense' : 'Armor') || 0;
   if (gold >= 250 + 100 * Math.min(al, ar) && army.length >= 10) {
     if (WOLF) { scope.order(al <= ar ? 'Beast Attack Upgrade' : 'Beast Defense Upgrade', [fg]); } else { scope.order(al <= ar ? 'Attack Upgrade' : 'Armor Upgrade', [fg]); }
     gold -= 200;
@@ -415,16 +460,27 @@ for (var i = 0; i < forges.length; i++) {
 
 // --- army production: soldiers in front, archers behind
 var soldierCost = costOf(WOLF ? 'wolf' : 'soldier'), archerCost = costOf(WOLF ? 'snake' : 'archer');
-for (var i = 0; i < raxDone.length; i++) {
-  var b = raxDone[i];
+// an idle building trains first; a second unit is queued only once every building is busy
+var idleRax = raxDone.filter(function(b) { return !b.getUnitTypeNameInProductionQueAt(1); });
+var trainers = idleRax.length ? idleRax : raxDone.filter(function(b) { return !b.getUnitTypeNameInProductionQueAt(2); });
+// snakes need a finished snake charmer
+var charmers = WOLF ? scope.getBuildings({type: 'Snake Charmer', player: me}) : [];
+var charmerDone = charmers.some(function(b) { return !b.isUnderConstruction(); });
+var charmerCost = WOLF ? costOf('snakecharmer') : 0;
+var wantCharmer = WOLF && S.nextTrain >= 6 && charmers.length === 0 && castlesDone.length >= 2;
+if (wantCharmer && builder && gold >= charmerCost && now - (S.charmPending || 0) > 20 && !saveForCastle) {
+  var sp4 = spotNear('snakecharmer', 10);
+  if (sp4) { buildAt('snakecharmer', 'Build Snake Charmer', sp4); gold -= charmerCost; S.charmPending = now; }
+}
+for (var i = 0; i < trainers.length; i++) {
+  var b = trainers[i];
   if (saveForCastle) { break; }
   if (needHouse && gold < houseCost + 80) { break; }
-  if (b.getUnitTypeNameInProductionQueAt(2)) { continue; }
   // three soldiers to two archers, and more soldiers against a melee army like wolves
   var archerSlot = enemyArmyKnown >= 4 && enemyMelee > enemyArmyKnown * 0.7 ? S.nextTrain % 4 === 3 : (S.nextTrain % 5 === 1 || S.nextTrain % 5 === 3);
   var kind = archerSlot ? 'Archer' : 'Soldier';
   // wolves: the first six are wolves, then wolves and snakes in turn
-  if (WOLF) { kind = S.nextTrain >= 6 && S.nextTrain % 2 === 1 ? 'Snake' : 'Wolf'; }
+  if (WOLF) { kind = charmerDone && S.nextTrain % 2 === 1 ? 'Snake' : 'Wolf'; }
   var c = kind === 'Soldier' || kind === 'Wolf' ? soldierCost : archerCost;
   // a missing barracks is paid for before more units
   var raxReserve = builder && ((now >= 80 && rax.length < 2) || raxBehind) ? raxCost : 0;
@@ -454,27 +510,90 @@ if (enemyWorkersVis.length >= (S.eWorkers || 0) || now - (S.eWorkersT || 0) > 12
 var eWorkersGuess = Math.max(S.eWorkers || 0, 12);
 // their army: what I remember, but never less than the most I saw lately, nor less than a guess from the clock
 if (enemyArmyKnown >= (S.eArmyPeak || 0) || now - (S.eArmyPeakT || 0) > 150) { S.eArmyPeak = enemyArmyKnown; S.eArmyPeakT = now; }
-// the clock guess only stands while I have not looked at their main lately
-if (scope.canSeeField(Math.floor(ehX), Math.floor(ehY))) { S.sawMain = now; }
-var clockGuess = now - (S.sawMain || -999) > 90 ? Math.min(24, Math.floor(now / 40)) : 0;
+// the clock guess only stands while I have not looked at their main lately, and counts on from what was there at the last look
+if (scope.canSeeField(Math.floor(ehX), Math.floor(ehY))) { S.sawMain = now; S.sawArmy = enemyArmyKnown; }
+var clockGuess = now - (S.sawMain || -999) > 90 ? Math.min(24, Math.floor((S.sawArmy || 0) + (now - (S.sawMain || 0)) / 40)) : 0;
 var eArmyGuess = Math.max(enemyArmyKnown, Math.round((S.eArmyPeak || 0) * 0.7), clockGuess);
-// --- wolf scout: one wolf keeps eyes on the enemy's main and every goldmine, so the pack decides from what is really there
-if (WOLF) {
+// --- raids: a small raid is met by a guard sized to it, which stays at that base while raids keep coming.
+// The rest of the army carries on; only a raid too big for a guard brings the whole army home.
+S.guardNeed = S.guardNeed || {}; S.guards = S.guards || {};
+var castleById = {}, raidAt = {};
+for (var i = 0; i < castles.length; i++) { castleById[castles[i].getUnitID()] = castles[i]; }
+for (var i = 0; i < castles.length; i++) {
+  var gx = castles[i].getX(), gy = castles[i].getY(), gid = castles[i].getUnitID();
+  var raiders = enemyArmyVis.filter(function(u) { return dist(u.getX(), u.getY(), gx, gy) < 26; });
+  if (!raiders.length) { continue; }
+  raidAt[gid] = raiders;
+  var gn = Math.max(5, Math.ceil(powerOf(raiders) * 1.8));
+  S.guardNeed[gid] = {n: Math.max(gn, S.guardNeed[gid] ? S.guardNeed[gid].n : 0), t: now};
+}
+var guardIds = Object.keys(S.guardNeed).map(Number).sort(function(a, b) { return a - b; });
+var totalNeed = 0;
+for (var i = 0; i < guardIds.length; i++) {
+  // a base left alone for two and a half minutes gives its guard back
+  if (!castleById[guardIds[i]] || now - S.guardNeed[guardIds[i]].t > 150) { delete S.guardNeed[guardIds[i]]; continue; }
+  totalNeed += S.guardNeed[guardIds[i]].n;
+}
+var guardsOn = totalNeed > 0 && totalNeed <= P * 0.5;
+var armyDefends = !guardsOn && !!threatAt;
+if (!guardsOn) {
+  S.guards = {};
+} else {
+  var armyById = {};
+  for (var i = 0; i < army.length; i++) { armyById[army[i].getUnitID()] = army[i]; }
+  var gKeys = Object.keys(S.guards).map(Number);
+  for (var i = 0; i < gKeys.length; i++) { if (!armyById[gKeys[i]] || !S.guardNeed[S.guards[gKeys[i]]]) { delete S.guards[gKeys[i]]; } }
+  for (var i = 0; i < guardIds.length; i++) {
+    var gcid = guardIds[i], gneed = S.guardNeed[gcid];
+    if (!gneed) { continue; }
+    var gc = castleById[gcid], gcx = gc.getX(), gcy = gc.getY();
+    var squad = army.filter(function(u) { return S.guards[u.getUnitID()] === gcid; });
+    if (powerOf(squad) < gneed.n) {
+      // the nearest units not already guarding somewhere fill the guard up
+      var spare = army.filter(function(u) { return !S.guards[u.getUnitID()]; });
+      spare.sort(function(a, b) { return dist(a.getX(), a.getY(), gcx, gcy) - dist(b.getX(), b.getY(), gcx, gcy) || byId(a, b); });
+      while (spare.length && powerOf(squad) < gneed.n) { var gu = spare.shift(); squad.push(gu); S.guards[gu.getUnitID()] = gcid; }
+    }
+    if (raidAt[gcid]) {
+      var gt = nearest(raidAt[gcid], gcx, gcy);
+      scope.order('AMove', squad, {x: gt.getX(), y: gt.getY()}, false);
+    } else {
+      // between raids the guard stands between the castle and its goldmine
+      var gm = mineNear(gcx, gcy, 14);
+      var gh = gm ? {x: (gcx + gm.getX()) / 2, y: (gcy + gm.getY()) / 2} : {x: gcx, y: gcy};
+      var gFar = squad.filter(function(u) { return dist(u.getX(), u.getY(), gh.x, gh.y) > 5; });
+      if (gFar.length) { scope.order('AMove', gFar, gh, false); }
+    }
+  }
+  army = army.filter(function(u) { return !S.guards[u.getUnitID()]; });
+  P = powerOf(army);
+}
+// --- scout: one wolf or soldier keeps eyes on the enemy's main and every goldmine, so the army decides from what is really there
+var scoutKind = WOLF ? 'Wolf' : 'Soldier';
+{
   var sWolf = null;
+  // every unit is wanted at home while a base is under attack
+  if (threatAt && S.wScout) { S.wScout = null; }
   for (var i = 0; i < army.length; i++) { if (army[i].getUnitID() === S.wScout) { sWolf = army[i]; } }
-  if (!sWolf && army.length >= 3 && now - (S.wScoutLost || 0) > 25) {
-    var wolvesOnly = army.filter(function(u) { return u.getTypeName() === 'Wolf'; });
+  if (!sWolf && !threatAt && army.length >= (WOLF ? 3 : 6) && now - (S.wScoutLost || 0) > (WOLF ? 25 : 60)) {
+    var wolvesOnly = army.filter(function(u) { return u.getTypeName() === scoutKind; });
     if (wolvesOnly.length) { sWolf = wolvesOnly[0]; S.wScout = sWolf.getUnitID(); S.wScoutStep = 0; S.wScoutT = 0; }
   } else if (!sWolf && S.wScout) { S.wScout = null; S.wScoutLost = now; }
   if (sWolf) {
     army = army.filter(function(u) { return u.getUnitID() !== S.wScout; });
     P = powerOf(army);
     // its round: their main, then each goldmine away from my bases, and round again
-    var route = [S.estart].concat(mines.filter(function(m) { return dist(m.getX(), m.getY(), homeX, homeY) > 25; }).map(function(m) { return {x: m.getX(), y: m.getY()}; }));
+    var farMines = mines.filter(function(m) { return dist(m.getX(), m.getY(), homeX, homeY) > 25; });
+    // a soldier is slow, so it takes the goldmines nearest their main first: that is where they expand
+    if (!WOLF) {
+      farMines = farMines.filter(function(m) { return !castles.some(function(cc) { return dist(cc.getX(), cc.getY(), m.getX(), m.getY()) < 16; }); });
+      farMines.sort(function(a, b) { return dist(a.getX(), a.getY(), S.estart.x, S.estart.y) - dist(b.getX(), b.getY(), S.estart.x, S.estart.y) || byId(a, b); });
+    }
+    var route = [S.estart].concat(farMines.map(function(m) { return {x: m.getX(), y: m.getY()}; }));
     var stop = route[(S.wScoutStep || 0) % route.length];
     // it runs from anything that can catch it, back the way it came
     var chasers = enemyArmyVis.filter(function(u) { return dist(u.getX(), u.getY(), sWolf.getX(), sWolf.getY()) < 7; });
-    if (chasers.length || dist(sWolf.getX(), sWolf.getY(), stop.x, stop.y) < 7 || now - (S.wScoutT || 0) > 45) {
+    if (chasers.length || dist(sWolf.getX(), sWolf.getY(), stop.x, stop.y) < 7 || now - (S.wScoutT || 0) > (WOLF ? 45 : 150)) {
       S.wScoutStep = (S.wScoutStep || 0) + 1; S.wScoutT = now;
       stop = route[S.wScoutStep % route.length];
       var sf = scope.getClosestReachableField(sWolf.getX(), sWolf.getY(), Math.round(stop.x), Math.round(stop.y));
@@ -499,23 +618,30 @@ if (army.length) {
   var myPower = P;
   var bigEnough = P >= Math.max(S.firstWave, Math.ceil(eArmyGuess * 1.3) + 2) || supply >= 140;
   // into their main only with enough to beat their army and all their workers together
-  var crushMain = P >= (eArmyGuess + eWorkersGuess * 0.35) * 1.5 + 4 || supply >= 146;
+  // their finished towers there count too, each about two soldiers
+  var mainTowers = enemyBuildings.filter(function(b) { return b.getTypeName() === 'Watchtower' && !b.isUnderConstruction() && dist(b.getX(), b.getY(), ehX, ehY) < 30; }).length;
+  var crushMain = P >= (eArmyGuess + eWorkersGuess * 0.35 + mainTowers * 2) * 1.5 + 4 || supply >= 146;
+  // a fresh look at their main that shows it can be taken is better than waiting for a big army
+  if (!WOLF && crushMain && P >= 8 && now - (S.sawMain || -999) < 90) { bigEnough = true; }
   var cDistEnemy = dist(c.x, c.y, ehX, ehY);
   var outlying = enemyBuildings.filter(function(b) { return dist(b.getX(), b.getY(), ehX, ehY) > 30; });
   var raidable = WOLF ? enemyWorkersVis.filter(function(u) { return dist(u.getX(), u.getY(), ehX, ehY) > 25; }) : [];
 
-  if (threatAt) {
+  if (armyDefends) {
+    // an army called home from an attack goes straight back out afterwards
+    if (S.mode === 'attack' || S.mode === 'retreat') { S.wasOut = true; }
     setMode('defend');
     // hold beside the workers unless the army wins on its own, so they can join in
     var holdX = holdPt.x, holdY = holdPt.y;
-    if (P >= powerOf(threats) * 1.4 || closeThreats.length) {
-      var dc = centerOf(closeThreats.length ? closeThreats : threats);
+    // it goes out to them when it wins alone, or when they are in among the workers, who then fight beside it.
+    // Otherwise it stands by the workers and does not walk out to an army that only hovers.
+    var inBase = threats.filter(function(u) { return dist(u.getX(), u.getY(), holdX, holdY) < 10; });
+    if (P >= powerOf(threats) * 1.3 || inBase.length) {
+      var dc = centerOf(inBase.length ? inBase : threats);
       scope.order('AMove', army, dc, false);
     } else {
-      var farH = army.filter(function(u) { return dist(u.getX(), u.getY(), holdX, holdY) > 4; });
-      if (farH.length) { scope.order('Move', farH, {x: holdX, y: holdY}, false); }
-      var atH = army.filter(function(u) { return dist(u.getX(), u.getY(), holdX, holdY) <= 4; });
-      if (atH.length) { scope.order('AMove', atH, {x: holdX, y: holdY}, false); }
+      // fighting its way there: a unit walking home without hitting back just dies
+      scope.order('AMove', army, {x: holdX, y: holdY}, false);
     }
   } else if (proxies.length && army.length >= 6) {
     setMode('defend');
@@ -536,6 +662,8 @@ if (army.length) {
     var localPow = enemyNearArmy + towersAt(c.x, c.y, 10) * 2 + workersOut * 0.35;
     // once in a fight it stays while it is about even; it only starts one with a clear edge
     var losing = localPow > 0 && localPow > groupPow * (S.engaged ? 1.0 : 0.75);
+    // a pack smaller than their whole army does not chase far from home: the rest of theirs is where it is being led
+    if (nearEnemy.length && P < eArmyGuess * 1.2 && dist(c.x, c.y, homeX, homeY) > 35) { losing = true; }
     if (losing) { S.wBack = now + 8; S.engaged = false; }
     if (now < (S.wBack || 0)) {
       var bx = stageX, by = stageY;
@@ -570,12 +698,12 @@ if (army.length) {
       if (tgt && mainGroup.length < army.length * 0.6) {
         // stragglers catch up first
         var farM = army.filter(function(u) { return dist(u.getX(), u.getY(), c.x, c.y) > 5; });
-        if (farM.length) { scope.order('Move', farM, c, false); }
+        if (farM.length) { scope.order('AMove', farM, c, false); }
       } else if (tgt) {
         scope.order('AMove', army, tgt, false);
       } else {
         // nothing it can win yet: wait outside their worker range if it is not smaller than their army, else at home
-        var w = P >= 4 && P >= eArmyGuess * 0.9 ? S.fwd : {x: stageX, y: stageY};
+        var w = P >= 4 && P >= eArmyGuess * 1.2 ? S.fwd : {x: stageX, y: stageY};
         var farW = army.filter(function(u) { return dist(u.getX(), u.getY(), w.x, w.y) > 6; });
         if (farW.length) { scope.order(w === S.fwd ? 'AMove' : 'Move', farW, w, false); }
       }
@@ -649,8 +777,9 @@ if (army.length) {
     if ((atSpot && waited > 12) || waited > 40) { setMode(army.length >= 6 ? 'attack' : 'gather'); }
   }
   if (!WOLF && (S.mode === 'gather' || S.mode === 'defend')) {
-    if (!threatAt && !(proxies.length && army.length >= 6)) {
-      if (bigEnough && mainGroup.length >= army.length * 0.7 && dist(c.x, c.y, stageX, stageY) < 12) {
+    if (!armyDefends && !(proxies.length && army.length >= 6)) {
+      if (bigEnough && mainGroup.length >= army.length * 0.7 && (dist(c.x, c.y, stageX, stageY) < 12 || S.wasOut)) {
+        S.wasOut = false;
         setMode('attack');
       } else {
         setMode('gather');

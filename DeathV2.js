@@ -636,8 +636,8 @@ if (army.length) {
     // it goes out to them when it wins alone, or when they are in among the workers, who then fight beside it.
     // Otherwise it stands by the workers and does not walk out to an army that only hovers.
     var inBase = threats.filter(function(u) { return dist(u.getX(), u.getY(), holdX, holdY) < 10; });
-    if (P >= powerOf(threats) * 1.3 || inBase.length) {
-      var dc = centerOf(inBase.length ? inBase : threats);
+    if (P >= powerOf(threats) * 1.4 || closeThreats.length) {
+      var dc = centerOf(closeThreats.length ? closeThreats : threats);
       scope.order('AMove', army, dc, false);
     } else {
       // fighting its way there: a unit walking home without hitting back just dies

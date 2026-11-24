@@ -633,9 +633,7 @@ if (army.length) {
     setMode('defend');
     // hold beside the workers unless the army wins on its own, so they can join in
     var holdX = holdPt.x, holdY = holdPt.y;
-    // it goes out to them when it wins alone, or when they are in among the workers, who then fight beside it.
-    // Otherwise it stands by the workers and does not walk out to an army that only hovers.
-    var inBase = threats.filter(function(u) { return dist(u.getX(), u.getY(), holdX, holdY) < 10; });
+    // it goes out to them when it wins alone or when they are close to a base; otherwise it stands by the workers
     if (P >= powerOf(threats) * 1.4 || closeThreats.length) {
       var dc = centerOf(closeThreats.length ? closeThreats : threats);
       scope.order('AMove', army, dc, false);

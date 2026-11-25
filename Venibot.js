@@ -324,6 +324,7 @@ buildings.forEach(b => {
   const key = id(b), old = S.investments[key], left = b.getValue('buildTicksLeft');
   if (!old) S.investments[key] = {type:b.getTypeName(), status:'pending', lastProgress:now, left};
   const record = S.investments[key];
+  if(record.type==='House' && !record.site) record.site=pos(b);
   if (record.left !== left) {
     record.lastProgress = now;
     delete record.waitingForDefense;
@@ -406,7 +407,16 @@ function placement(type,base) {
     const mine=pos(base.mine);
     anchors=[{x:(base.x+mine.x)/2,y:(base.y+mine.y)/2}];
   }
-  if(type!=='Castle'&&anchors.length>1) {
+  const lostHouse=type==='House' && !base && !S.launched && bases.filter(b=>b.finished).length===3 &&
+    Object.values(S.investments).some(i=>i.type==='House' && i.status==='lost' && i.site &&
+      now-i.lostAt<45 && memory.some(e=>e.damage>0 && !e.building && now-e.seen<20 && dist(e,i.site)<12));
+  const sheltered=lostHouse?bases.filter(b=>b.finished && b.mine &&
+      workers.filter(w=>w.getCurrentHP()>0.65*w.getEffectiveValue('hp') && dist(pos(w),b)<14).length>=2 &&
+      !visible.some(e=>e.damage>0 && dist(e,b)<15)):[];
+  if(sheltered.length){
+    sheltered.sort((a,b)=>a.threat-b.threat||a.id-b.id);
+    anchors=[sheltered[0],...anchors.filter(a=>dist(a,sheltered[0])>1)];
+  } else if(type!=='Castle'&&anchors.length>1) {
     const offset=Math.floor(now/8)%anchors.length;
     anchors=anchors.slice(offset).concat(anchors.slice(0,offset));
   }
@@ -559,15 +569,6 @@ if(rushBarracks || rebuildingForRetake) ensure('Barracks',2);
 const exposedExpansion=bases.find(b=>!b.finished && b.threats.some(e=>e.seen===now&&!e.building&&e.type!=='Worker') &&
   army.some(u=>dist(pos(u),b)<16));
 if(raided) S.raids[raided.id]=now;
-const bankedDefense=budget>=cost('Castle')+2*cost('Watchtower') ?
-  bases.filter(b=>b.finished&&S.raids[b.id]!==undefined&&now-S.raids[b.id]<90)
-    .sort((a,b)=>b.threat-a.threat||a.id-b.id)[0] : null;
-const fortify=proxy || exposedExpansion || bankedDefense || (raided && raided.threat>Math.max(45,totalPower*0.5+raided.support) ? raided : null);
-const towerTarget=fortify===proxy && proxy?2:fortify===bankedDefense && bankedDefense?3:1;
-if(fortify && dist(fortify,start)>14 && done('Barracks').length && budget-reserved>=cost('Watchtower')+cost('Archer')+5*typed('Watchtower').length &&
-   typed('Watchtower').filter(b=>dist(pos(b),fortify)<14).length<towerTarget) {
-  ensure('Watchtower',typed('Watchtower').length+1,fortify);
-}
 // Buildings already paid for remain pending and don't reserve their price again.
 // Under contact the next Barracks helps only after construction. Let idle production
 // spend on defenders first, then add capacity when both purchases fit.
@@ -656,16 +657,107 @@ if(defendedSite) {
     const pull=workers.filter(w=>!militia[id(w)] && !usedWorkers[id(w)] && id(w)!==S.scoutId && canJoin(w) &&
       !Object.values(S.repairs).some(r=>r.worker===id(w)) && !/^Build |^Repair$/.test(w.getCurrentOrderName()||'') &&
       w.getCurrentHP()>w.getEffectiveValue('hp')*0.65).sort((a,b)=>dist(pos(a),intruders[0])-dist(pos(b),intruders[0])||id(a)-id(b));
+    let guardPoint=null,guardWolf=null;
+    if(now-(S.minerRegroupAt??-100)<45 && wolves.length>=3 && defendedSite.id===S.naturalId &&
+       bases.length===2 && !S.launched && target && intruders[0].type==='Wolf'){
+      let cluster=[];
+      for(const bow of nearbyArchers){
+        const peers=nearbyArchers.filter(v=>dist(pos(v),pos(bow))<3.5);
+        if(peers.length>cluster.length)cluster=peers;
+      }
+      if(cluster.length>=3){
+        const center=scope.getCenterOfUnits(cluster);
+        if(dist(center,intruders[0])>4.5){
+          const closest=wolves.slice().sort((l,r)=>dist(center,l)-dist(center,r)||l.id-r.id)[0];
+          if(dist(center,closest)<=4.5)guardWolf=enemyWrappers.find(u=>id(u)===closest.id);
+          else{
+            const reach=2/dist(center,closest);
+            guardPoint={x:Math.round(center.x+reach*(closest.x-center.x)),y:Math.round(center.y+reach*(closest.y-center.y))};
+            if(!scope.positionIsPathable(guardPoint.x,guardPoint.y))guardPoint=null;
+          }
+        }
+      }
+    }
     let covered=0, pulled=0;
     for(const w of pull.slice(0,Math.min(8,Math.max(0,workers.length-4)))) {
       if((covered>=deficit && pulled>=screenSize) || !target) break;
-      order('Attack',[w],{unit:target},2); militia[id(w)]=true; covered+=P.power(ownSnapshots[id(w)]); pulled++;
+      if(guardPoint || guardWolf) S.lastArcherGuard=now;
+      if(guardPoint && scope.isReachable(Math.ceil(w.getX()),Math.ceil(w.getY()),guardPoint.x,guardPoint.y)){
+        if(dist(pos(w),guardPoint)>1.8)move(w,guardPoint);
+        else order('Hold Position',[w],null,2);
+      }else order('Attack',[w],{unit:guardWolf||target},2);
+      militia[id(w)]=true; covered+=P.power(ownSnapshots[id(w)]); pulled++;
     }
     workerDefense={at:marchContact?'escort':naturalContact?'natural':'base',target:intruders[0].id,x:defendedSite.x,y:defendedSite.y,
       intruders:intruders.length,guards,support:defendedSite.support,deficit,screenSize,pulled,covered};
   }
 }
-for (const w of workers) {
+const reliefSite=bases.find(b=>b.id===S.naturalId && b.finished);
+if(reliefSite && bases.length===2 && !S.launched){
+  const wolves=visible.filter(e=>e.type==='Wolf' && dist(e,reliefSite)<14);
+  const nearby=army.filter(a=>a.getTypeName()==='Archer' && dist(pos(a),reliefSite)<14);
+  const localCrew=workers.filter(w=>dist(pos(w),reliefSite)<13 && !usedWorkers[id(w)] &&
+    !/^Build |^Repair$/.test(w.getCurrentOrderName()||'') && w.getCurrentHP()>0.65*w.getEffectiveValue('hp'));
+  const screenFighting=localCrew.filter(w=>w.getCurrentOrderName()==='Attack' && dist(pos(w),reliefSite)<8);
+  const reachedBows=nearby.filter(a=>a.getCurrentHP()<0.8*a.getEffectiveValue('hp') &&
+    wolves.some(e=>P.edge(ownSnapshots[id(a)],e)<=1.5));
+  const breached=screenFighting.length>=3 && reachedBows.length>=2;
+  if(wolves.length>=4 && (breached || nearby.filter(a=>a.getCurrentHP()<=0.5*a.getEffectiveValue('hp')).length>=2) &&
+      localCrew.length<=4 &&
+      (wolves.length>localCrew.length || !localCrew.some(w=>w.getCurrentOrderName()==='Mine')) &&
+      now>=(S.nextRelief||0)){
+    const replacements=workers.filter(w=>dist(pos(w),reliefSite)>=13 && dist(pos(w),reliefSite)<37 &&
+      w.getCurrentHP()>=0.9*w.getEffectiveValue('hp') && w.getCurrentOrderName()==='Mine' &&
+      !usedWorkers[id(w)] && id(w)!==S.scoutId && !militia[id(w)]);
+    replacements.sort((a,b)=>dist(pos(a),reliefSite)-dist(pos(b),reliefSite)||id(a)-id(b));
+    if(replacements.length>=3){
+      const d=Math.max(1,dist(home,reliefSite));
+      S.relief={ids:replacements.slice(0,2).map(id),until:now+17,point:{
+        x:reliefSite.x+4*(home.x-reliefSite.x)/d,y:reliefSite.y+4*(home.y-reliefSite.y)/d}};
+      if(nearby.filter(a=>a.getCurrentHP()<=a.getEffectiveValue('hp')/2).length>=2)
+        S.woundedLineUntil=now+44;
+      S.nextRelief=now+24;
+    }
+  }
+  if(S.relief && !wolves.length){
+    const activeGuard=now-(S.lastArcherGuard??-100)<30 && now<S.relief.until;
+    const homeAttack=visible.some(e=>e.damage>0 && !e.building && dist(e,home)<13);
+    if(!activeGuard || homeAttack)S.relief=null;
+  }
+}
+let miningOrder=workers;
+const firstMine=safeBases.find(b=>b.id===S.naturalId && b.mine && b.finished);
+const mainMine=safeBases.find(b=>b.finished && b.mine && dist(b,home)<5);
+if(!S.checkedNaturalStaff && firstMine && mainMine && firstMine!==mainMine && bases.length===2){
+  S.checkedNaturalStaff=true;
+  const contact = visible.some(e=>e.type==='Wolf' && dist(e,firstMine)<15);
+  if(!contact && firstMine.workers===0 && army.filter(a=>a.getTypeName()==='Archer' && dist(pos(a),firstMine)<14).length>=2 &&
+     memory.some(e=>e.type==='Wolf' && now-e.seen<45 && dist(e,firstMine)<15)){
+    const miners=workers.filter(w=>S.jobs[id(w)]===mainMine.id && !militia[id(w)] && !usedWorkers[id(w)] &&
+      id(w)!==S.scoutId && !Object.values(S.repairs).some(r=>r.worker===id(w)) &&
+      !/^Build |^Repair$/.test(w.getCurrentOrderName()||''));
+    const firstHalf=Math.floor(miners.length/2);
+    const wounded=miners.slice(0,firstHalf).filter(w=>w.getCurrentHP()<=0.65*w.getEffectiveValue('hp'));
+    const reserve=miners.slice(firstHalf).filter(w=>w.getCurrentHP()>0.65*w.getEffectiveValue('hp'));
+    const fresh=reserve.filter(w=>w.getCurrentHP()>=0.9*w.getEffectiveValue('hp')).reverse();
+    const exchanges=Math.min(2,wounded.length,fresh.length,Math.max(0,reserve.length-2));
+    if(exchanges){
+      miningOrder=workers.slice();
+      for(let i=0;i<exchanges;i++){
+        const a=workers.indexOf(wounded[i]),b=workers.indexOf(fresh[i]);
+        miningOrder[a]=fresh[i];miningOrder[b]=wounded[i];
+      }
+    }
+  }
+}
+for (const w of miningOrder) {
+  if(S.relief && S.relief.until>now && S.relief.ids.includes(id(w)) && !usedWorkers[id(w)] &&
+     !militia[id(w)] && w.getCurrentHP()>0.65*w.getEffectiveValue('hp') &&
+     !/^Build |^Repair$/.test(w.getCurrentOrderName()||'')){
+    if(dist(pos(w),S.relief.point)>2)move(w,S.relief.point);
+    else order('Hold Position',[w],null,2);
+    continue;
+  }
   if (militia[id(w)]||usedWorkers[id(w)]||Object.values(S.repairs).some(r=>r.worker===id(w))||id(w)===S.scoutId) continue;
   if (/^Build |^Repair$/.test(w.getCurrentOrderName() || '')) continue;
   const danger=visible.filter(e=>e.damage>0&&dist(e,pos(w))<6).sort((a,b)=>dist(a,pos(w))-dist(b,pos(w))||a.id-b.id)[0];
@@ -701,7 +793,11 @@ if(expansionWindow) ensure('Castle',targets.Castle);
 function train(b,type,command) {
   if (b.isUnderConstruction()||b.getUnitTypeNameInProductionQueAt(1)) return false;
   const price=cost(type), needed=scope.getTypeFieldValue(type.toLowerCase(),'supply');
-  if (budget-reserved<price||supply+needed>capacity) return false;
+  // Leave space for launch Catapults while rebuilding a capped Archer army.
+  const siegeRoom=!S.launched && S.phase>=4 && cats<C.attackMinCatapults && done('Workshop').length &&
+    (type==='Archer' || (type==='Worker' && workerCount>=C.workerPriorityFloor)) ?
+    (C.attackMinCatapults-cats)*scope.getTypeFieldValue('catapult','supply') : 0;
+  if (budget-reserved<price||supply+needed>Math.min(capacity,cap-siegeRoom)) return false;
   scope.order(command,[b]); budget-=price; supply+=needed; return true;
 }
 for (const b of done('Castle')) if(workerCount<workerTarget || (capacity===cap&&supply===cap-1)) {
@@ -739,7 +835,10 @@ if (!emergency && !rushBarracks) {
       // First Barracks must finish before base two; Workshop/rax two before base three.
       if ((n===1&&!done('Barracks').length)||(n===2&&(!done('Workshop').length||done('Barracks').length<2))) break;
     }
-    ensure(type,targets[type]); break;
+    const submitted=ensure(type,targets[type]);
+    if(!submitted && type==='Barracks' && S.phase>=4 && typed('Castle').length<3 &&
+       done('Barracks').length>=2 && budget>=cost('Castle') && !S.pending.Castle) continue;
+    break;
   }
 }
 if(fundingNatural && S.pending.Castle) reserved=0;
@@ -816,7 +915,10 @@ if(scout && ((!maintainingSite && now-S.scoutSince>(needsSurvey?C.expansionScout
 }
 if(!scout&&now>=S.nextScout&&!emergency && (needsSurvey || (S.phase>=2 && !(now<S.naturalHold?.until)))) {
   const surveyor=needsSurvey&&workers.length>=8?builderNear(home):null;
-  scout=surveyor || army.find(u=>u.getTypeName()==='Archer'&&u.getCurrentHP()>=u.getEffectiveValue('hp')*0.7&&!String(S.assignment[id(u)]).startsWith('defend:')) || (!army.length&&workers.length>=9?builderNear(home):null);
+  const guardedNatural=!needsSurvey && now-(S.lastArcherGuard??-100)<30 &&
+    bases.find(b=>b.id===S.naturalId && b.finished);
+  scout=surveyor || army.find(u=>u.getTypeName()==='Archer'&&
+    !(guardedNatural && dist(pos(u),guardedNatural)<16) &&u.getCurrentHP()>=u.getEffectiveValue('hp')*0.7&&!String(S.assignment[id(u)]).startsWith('defend:')) || (!army.length&&workers.length>=9?builderNear(home):null);
   if(scout) { S.scoutId=id(scout); S.scoutSince=now; S.scoutIndex++; delete S.jobs[id(scout)]; }
   else S.nextScout=now+5;
 }
@@ -920,9 +1022,34 @@ if(!commitNatural && forwardProduction && available.length>=8) {
   S.squads.counter.objective={x:forwardProduction.x,y:forwardProduction.y};
 }
 const unfinishedBase=bases.find(b=>!b.finished);
-const escortPoint=commitNatural ? S.naturalHold : unfinishedBase || securedGoal || (needsSurvey && S.escortPoint && now-S.escortPoint.time<16 && budget>=200 ? S.escortPoint : null);
-if(escortPoint && (commitNatural || (S.phase<=3 && available.length>=4 && (!raided || (securedGoal && available.length>=8))))) {
-  const escortCount=Math.min(securedGoal?12:7,Math.floor(available.length/2));
+let escortRally=S.naturalHold;
+if(commitNatural && !S.launched && !visible.some(e=>e.damage>0 && dist(e,S.naturalHold)<13)){
+  const homeWolves=visible.filter(e=>e.type==='Wolf' && dist(e,home)<14);
+  const homeCrew=workers.filter(w=>dist(pos(w),home)<14);
+  const defending=homeCrew.filter(w=>militia[id(w)]);
+  if(homeWolves.length>=2 && defending.length>=2 && homeCrew.length>=6){
+    const forward=defending.slice().sort((a,b)=>dist(pos(a),S.naturalHold)-dist(pos(b),S.naturalHold)||id(a)-id(b))[0];
+    S.homeEscort={...pos(forward),until:now+8};
+  }
+  if(S.homeEscort && S.homeEscort.until>now)escortRally=S.homeEscort;
+}
+const buildSite = !commitNatural && S.phase===3 && bases.filter(b=>b.finished).length===2 &&
+    (unfinishedBase || (S.pending.Castle && {x:S.pending.Castle.x+1.5,y:S.pending.Castle.y+1.5}));
+if (!buildSite) S.siteEscort=null;
+else if (!S.siteEscort || dist(S.siteEscort,buildSite)>2) {
+  const siteThreat=visible.some(e=>!e.building && e.damage>0 && dist(e,buildSite)<12);
+  const capable=available.filter(u=>u.getTypeName()==='Archer' &&
+    dist(pos(u),buildSite)<(siteThreat ? 12 : 6) &&
+    u.getCurrentHP()>0.5*u.getEffectiveValue('hp'));
+  const exposed = available.filter(u=>u.getTypeName()==='Archer' &&
+    dist(pos(u),buildSite)<12 && u.getCurrentHP()<=0.5*u.getEffectiveValue('hp') &&
+    visible.some(e=>e.type==='Wolf' && dist(e,pos(u))<4));
+  S.siteEscort={x:buildSite.x,y:buildSite.y,ready:capable.length>=2 || exposed.length>=2};
+}
+const thirdBuilderSite = buildSite && S.siteEscort.ready && available.length>=8 && buildSite;
+const escortPoint=commitNatural ? escortRally : thirdBuilderSite || unfinishedBase || securedGoal || (needsSurvey && S.escortPoint && now-S.escortPoint.time<16 && budget>=200 ? S.escortPoint : null);
+if(escortPoint && (commitNatural || (S.phase<=3 && available.length>=4 && (!raided || thirdBuilderSite || (securedGoal && available.length>=8))))) {
+  const escortCount=Math.min(thirdBuilderSite && raided ? 3 : securedGoal?12:7,Math.floor(available.length/2));
   const escorts=commitNatural ? available.slice() : available.filter(u=>u.getTypeName()==='Archer').sort((a,b)=>
     (S.assignment[id(a)]==='escort'?-1:0)-(S.assignment[id(b)]==='escort'?-1:0)||
     dist(pos(a),escortPoint)-dist(pos(b),escortPoint)||id(a)-id(b)).slice(0,escortCount);
@@ -930,6 +1057,60 @@ if(escortPoint && (commitNatural || (S.phase<=3 && available.length>=4 && (!raid
   available=available.filter(u=>desired[id(u)]!=='escort');
   S.squads.escort=S.squads.escort||{state:'escort',since:now};
   S.squads.escort.objective={x:escortPoint.x,y:escortPoint.y};
+}
+const thirdCastle=bases.find(b=>b.finished && b.id!==naturalSite?.id && dist(b,home)>6);
+if(!thirdCastle || S.siegeSite?.id!==thirdCastle.id)
+  S.siegeSite=thirdCastle ? {id:thirdCastle.id, contested:false, lastPressure:-Infinity} : null;
+if(thirdCastle) {
+  const hp=ownSnapshots[thirdCastle.id];
+  const attackers=thirdCastle.threats.some(e=>!e.building && !e.lastPositionCleared &&
+    now-e.seen<C.retreatSeconds && P.edge(e,hp)<=e.range+2);
+  if(attackers && hp.hp<hp.maxHP*0.65) S.siegeSite.contested=true;
+  if(attackers) S.siegeSite.lastPressure=now;
+  if(hp.hp>=hp.maxHP*0.8 && now-S.siegeSite.lastPressure>=C.retreatSeconds)
+    S.siegeSite.contested=false;
+}
+if (!S.siegeSite?.contested && !S.launched && !commitNatural && naturalSite?.finished && naturalSite.mine &&
+    bases.filter(b=>b.finished).length>=3 && naturalSite.workers>=8 &&
+    now-(S.raids[naturalSite.id]??-Infinity)<30) {
+  const name='defend:'+naturalSite.id;
+  const current=readyArmy.filter(u=>desired[id(u)]===name);
+  const count=Math.max(0,3-current.length);
+  const guards=available.filter(u=>u.getTypeName()==='Archer' &&
+    S.assignment[id(u)]===name && dist(pos(u),naturalSite)<15)
+    .sort((a,b)=>dist(pos(a),naturalSite)-dist(pos(b),naturalSite)||id(a)-id(b)).slice(0,count);
+  if (guards.length) {
+    for (const u of guards) desired[id(u)]=name;
+    available=available.filter(u=>desired[id(u)]!==name);
+    if (!threats.includes(naturalSite)) {
+      threats.push(naturalSite);
+      const mine=pos(naturalSite.mine);
+      S.squads[name].objective={x:(naturalSite.x+mine.x)/2,y:(naturalSite.y+mine.y)/2};
+    }
+  }
+}
+if (!S.launched && !commitNatural && naturalSite?.finished && naturalSite.workers>=4 &&
+    bases.filter(b=>b.finished).length===3 && thirdCastle?.workers>=4 && !S.siegeSite.contested) {
+  const name='defend:'+naturalSite.id;
+  const stationed=readyArmy.filter(u=>u.getTypeName()==='Catapult' && desired[id(u)]===name).length;
+  const free=available.filter(u=>u.getTypeName()==='Catapult');
+  const expansionSiege=readyArmy.filter(u=>u.getTypeName()==='Catapult' &&
+    (!desired[id(u)] || bases.some(b=>dist(b,home)>6 && desired[id(u)]==='defend:'+b.id))).length;
+  const needed=Math.max(0,Math.floor(expansionSiege/2)-stationed);
+  const launchWindow=S.phase>=5 && (S.maxed || done('Barracks').length>=C.threeBaseBarracks);
+  const limit=launchWindow?Math.max(0,free.length-C.attackMinCatapults):free.length;
+  const guards=free.sort((a,b)=>
+    Number(S.assignment[id(b)]===name)-Number(S.assignment[id(a)]===name) ||
+    dist(pos(a),naturalSite)-dist(pos(b),naturalSite) || id(a)-id(b)).slice(0,Math.min(needed,limit));
+  if (guards.length) {
+    for (const u of guards) desired[id(u)]=name;
+    available=available.filter(u=>!desired[id(u)]);
+    if (!threats.includes(naturalSite)) {
+      threats.push(naturalSite);
+      S.squads[name]=S.squads[name]||{state:'defend',since:now};
+      S.squads[name].objective={x:naturalSite.x,y:naturalSite.y};
+    }
+  }
 }
 const reserveCount=readyArmy.length>=C.reserveMinArmy?Math.floor(readyArmy.length*C.reserveFraction):0;
 available.sort((a,b)=>Number(a.getTypeName()==='Catapult')-Number(b.getTypeName()==='Catapult')||
@@ -957,7 +1138,7 @@ if(readyArmy.length && crowdsRamp(Math.floor(front.x)-4,Math.floor(front.y)-4,9)
   }
   rally=S.openRally.point||front;
 }
-const militaryRally=commitNatural?S.naturalHold:rally;
+const militaryRally=commitNatural?escortRally:rally;
 const rallyOrigin=readyArmy.find(onWalkableField)||workers.find(onWalkableField);
 if(rallyOrigin) for(const b of done('Barracks').concat(done('Workshop'))) {
   const key='militaryRally'+id(b), point={x:Math.floor(militaryRally.x),y:Math.floor(militaryRally.y)};
@@ -1002,6 +1183,33 @@ enemyTarget=enemyTarget||enemyStarts[0]||home;
 const main=S.squads.main;
 if(main.state!=='retreat'||(now-main.since>C.retreatSeconds&&!visible.some(e=>e.damage>0&&mainMembers.some(u=>dist(e,pos(u))<19)))) main.state=S.launched&&!S.regroup?'attack':'gather';
 main.objective=main.state==='attack'?{x:enemyTarget.x,y:enemyTarget.y}:{x:rally.x,y:rally.y};
+let mineRegroup=null;
+if(now<(S.woundedLineUntil||0) && now<S.nextRelief+20 && naturalSite?.finished && naturalSite.mine &&
+    bases.length===2 && !S.launched &&
+    !visible.some(e=>e.damage>0 && (dist(e,naturalSite)<18 || dist(e,home)<13))){
+  const bows=readyArmy.filter(u=>u.getTypeName()==='Archer' && dist(pos(u),naturalSite)<16);
+  const miners=workers.filter(w=>w.getCurrentOrderName()==='Mine' && w.getCurrentHP()>0.65*w.getEffectiveValue('hp') &&
+    dist(pos(w),naturalSite)<11 && S.jobMines[id(w)]===id(naturalSite.mine));
+  const separated=bows.some(a=>!bows.some(b=>b!==a && dist(pos(a),pos(b))<3.5));
+  const continuing=now-(S.minerRegroupAt??-Infinity)<3;
+  if((separated || continuing) && bows.length>=3 && miners.length>=2 && bows.some(u=>u.getCurrentHP()<=0.5*u.getEffectiveValue('hp'))){
+    const mine=pos(naturalSite.mine),length=Math.max(1,dist(naturalSite,mine));
+    const dx=(mine.x-naturalSite.x)/length,dy=(mine.y-naturalSite.y)/length;
+    const options=[];
+    for(const depth of [3,5,7])for(const side of [-3,3]){
+      const p={x:Math.round(naturalSite.x+depth*dx-side*dy),y:Math.round(naturalSite.y+depth*dy+side*dx)};
+      if(!scope.positionIsPathable(p.x,p.y) || !scope.canSeeField(p.x,p.y))continue;
+      const distances=miners.map(w=>dist(pos(w),p)).sort((a,b)=>a-b);
+      if(distances[1]>6)continue;
+      const routes=bows.map(u=>scope.getGroundDistance(Math.ceil(u.getX()),Math.ceil(u.getY()),p.x,p.y));
+      if(routes.some(d=>d<0 || d>20))continue;
+      options.push({p,score:distances[1]+0.4*Math.max(...routes)});
+    }
+    options.sort((l,r)=>l.score-r.score);
+    mineRegroup=options[0]?.p;
+    if(mineRegroup)S.minerRegroupAt=now;
+  }
+}
 let predictionBudget=C.maxPredictionsPerUpdate;
 const activeNames=threats.map(b=>'defend:'+b.id).concat(['counter','escort','main','reserve'].filter(n=>S.squads[n]));
 for(const name of activeNames) {
@@ -1009,7 +1217,7 @@ for(const name of activeNames) {
   squad.members=members.map(id);
   if(!members.length) continue;
   const center=scope.getCenterOfUnits(members);
-  const support=name==='escort' && commitNatural ? S.naturalHold : bases.filter(b=>b.finished).sort((a,b)=>dist(a,center)-dist(b,center)||a.id-b.id)[0]||home;
+  const support=name==='escort' && commitNatural ? escortRally : bases.filter(b=>b.finished).sort((a,b)=>dist(a,center)-dist(b,center)||a.id-b.id)[0]||home;
   squad.support={x:support.x,y:support.y};
   const localEnemy=visible.filter(e=>dist(e,center)<19);
   const defensiveState=name==='reserve'?'gather':name==='escort'||name==='counter'?name:'defend';
@@ -1051,7 +1259,20 @@ for(const name of activeNames) {
     S.predictions[name]=prediction; S.nextPrediction[name]=now+C.predictionInterval;
     const hold=prediction.trusted && prediction.outcomes.find(o=>o.behavior==='hold');
     const enemyPower=localEnemy.reduce((v,u)=>v+P.power(u),0);
-    const friendlyPower=localOwn.reduce((v,u)=>v+P.power(u),0);
+    let friendlyPower=localOwn.reduce((v,u)=>v+P.power(u),0);
+    const defendedBase=bases.find(b=>name==='defend:'+b.id);
+    if (!prediction.trusted && !S.launched && !S.siegeSite?.contested && defendedBase &&
+        bases.filter(b=>b.finished).length===3 && bases.every(b=>b.defenseDemand<=defendedBase.defenseDemand) &&
+        friendlyPower<enemyPower*C.defenseMargin) {
+      const included=new Set(localOwn.map(a=>a.id));
+      for(const other of readyArmy) {
+        const peer=ownSnapshots[id(other)];
+        if(included.has(peer.id)||peer.ready<=0||dist(peer,center)>=19||
+            (peer.type!=='Archer'&&peer.type!=='Catapult'))continue;
+        if(attackers.some(e=>P.edge(peer,e)<=peer.range && P.edge(peer,e)>=peer.minRange))
+          friendlyPower+=P.power(peer);
+      }
+    }
     const shouldRetreat=prediction.trusted?(prediction.choice==='retreat'&&prediction.actionReliable&&hold.survival<C.retreatSurvival):enemyPower*C.defenseMargin>friendlyPower;
     if(workerScreen) { squad.state=defensiveState; squad.reason='fire behind nearby worker screen'; }
     else if(shouldRetreat) { squad.state='retreat'; squad.since=now; squad.reason=prediction.trusted?'forecast losses':'conservative unsupported-fight fallback'; }
@@ -1064,6 +1285,11 @@ for(const name of activeNames) {
     (u.getX()-center.x)*(squad.objective.x-center.x)+(u.getY()-center.y)*(squad.objective.y-center.y)<0).map(id);
   for(const u of members) {
     const a=ownSnapshots[id(u)];
+    if(mineRegroup && a.type==='Archer' && dist(a,naturalSite)<16){
+      if(dist(a,mineRegroup)>3)move(u,mineRegroup);
+      else order('Hold Position',[u],null,3);
+      continue;
+    }
     if(S.regroup && name==='main' && dist(a,rally)>13) { move(u,rally); continue; }
     // Once at the fallback point, fire from cover instead of repeatedly walking into the Castle.
     const marchingToNatural=commitNatural && name==='escort';

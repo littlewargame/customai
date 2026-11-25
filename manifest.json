@@ -39,5 +39,10 @@
         "name": "Death V2",
         "src": "DeathV2.js",
         "creator": "DeathStroke"
+    },
+    {
+        "name": "Venibot",
+        "src": "Venibot.js",
+        "creator": "veni"
     }
 ]

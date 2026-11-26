@@ -1503,11 +1503,8 @@ function ensure(type,count,base) {
 }
 
 const chat = scope.chatMessages || [];
-const selectRaiders = chat.some(({text, timeSeconds, playerName}) => {
-  if (timeSeconds >= 10 || text.trim().toLowerCase() !== 'venibot raiders') return false;
-  return game.players.some(p => p?.name === playerName && p.isAlive && p.team.number !== scope.getMyTeamNumber() &&
-      (p.controller === CONTROLLER.HUMAN || p.controller === CONTROLLER.REMOTE));
-});
+const selectRaiders = chat.some(({text, timeSeconds}) =>
+  timeSeconds < 10 && text.trim().toLowerCase() === 'venibot raiders');
 if (!S.raiderOpening && (C.forceRaiderOpening || selectRaiders)) {
   S.raiderOpening = true;
   if (!C.forceRaiderOpening) scope.chatMsg('Venibot: one-base Raiders selected.');

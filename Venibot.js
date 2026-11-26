@@ -1126,7 +1126,7 @@ function sevenCommanderReports() {
   if(mainMembers.length) {
     const at=main.objective;
     if(main.state==='gather') orders.push('Gathering at '+Math.round(rally.x)+', '+Math.round(rally.y)+'. '+
-      Math.round(gather*mainMembers.length)+'/'+mainMembers.length+' at rally. Launch requires '+Math.ceil(C.gatherFraction*mainMembers.length)+' gathered.');
+      gathered+'/'+reachableMain.length+' reachable main units at rally. Launch requires '+Math.ceil(C.gatherFraction*reachableMain.length)+' gathered.');
     else orders.push('Main squad: '+main.state+' toward '+Math.round(at.x)+', '+Math.round(at.y)+'.');
   }
   return {why:[wave.objective+' — '+why], mines:sevenMineReport(assigned,needMiningBase),
@@ -1196,6 +1196,7 @@ var done = type => typed(type).filter(b => !b.isUnderConstruction());
 var start = S.start || scope.getStartLocationForPlayerNumber(me) || (buildings[0] && pos(buildings[0]));
 if (!start) return;
 S.start = {...start};
+if (S.startingCastleId === undefined && done('Castle').length) S.startingCastleId=id(done('Castle')[0]);
 var home = done('Castle')[0] ? pos(done('Castle')[0]) : start;
 var cost = type => scope.getTypeFieldValue(type.toLowerCase(), 'cost') || 0;
 const purchases=[];
@@ -2049,7 +2050,19 @@ S.squads.main=S.squads.main||{state:'gather',since:now};
 S.squads.reserve=S.squads.reserve||{state:'gather',since:now};
 S.squads.reserve.objective={x:rally.x,y:rally.y};
 const mainMembers=readyArmy.filter(u=>desired[id(u)]==='main');
-const gather=mainMembers.filter(u=>dist(pos(u),rally)<15).length/Math.max(1,mainMembers.length);
+// Units in the same ground area share a path to the same walkable rally approach.
+const rallyAreas=new Map();
+const reachableMain=mainMembers.filter(u=>{
+  const area=scope.getAreaCode(Math.ceil(u.getX()),Math.ceil(u.getY()));
+  if(area<0) return false;
+  if(!rallyAreas.has(area)) {
+    const approach=reachableFrom(u,rally.x,rally.y);
+    rallyAreas.set(area,!!approach && dist(approach,rally)<7);
+  }
+  return rallyAreas.get(area);
+});
+const gathered=reachableMain.filter(u=>dist(pos(u),rally)<15).length;
+const gather=gathered/Math.max(1,reachableMain.length);
 if(attacking && gather>=C.gatherFraction) S.commander.advancing=true;
 S.launched=attacking && S.commander.advancing;
 if(S.launched && S.firstAttackAt===undefined) S.firstAttackAt=now;
@@ -2073,7 +2086,13 @@ if(!enemyTarget && S.launched && mainMembers.length) {
 enemyTarget=enemyTarget||enemyStarts[0]||home;
 const main=S.squads.main;
 if(main.state!=='retreat'||(now-main.since>C.retreatSeconds&&!visible.some(e=>e.damage>0&&mainMembers.some(u=>dist(e,pos(u))<19)))) main.state=S.launched&&!S.regroup?'attack':'gather';
-main.objective=main.state==='attack'?{x:enemyTarget.x,y:enemyTarget.y}:{x:rally.x,y:rally.y};
+let mainGather=rally;
+if (!attacking && main.state==='gather' && front.id===S.startingCastleId) {
+  const alternatives=bases.filter(b=>b.finished && b.id!==S.startingCastleId);
+  alternatives.sort((a,b)=>dist(a,enemyStarts[0]||home)-dist(b,enemyStarts[0]||home)||b.id-a.id);
+  mainGather=alternatives[0]||rally;
+}
+main.objective=main.state==='attack'?{x:enemyTarget.x,y:enemyTarget.y}:{x:mainGather.x,y:mainGather.y};
 let predictionBudget=C.maxPredictionsPerUpdate;
 const activeNames=threats.map(b=>'defend:'+b.id).concat(['counter','escort','main','reserve'].filter(n=>S.squads[n]));
 for(const name of activeNames) {
